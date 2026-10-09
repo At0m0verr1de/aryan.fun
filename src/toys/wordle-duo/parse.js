@@ -13,6 +13,8 @@ const PALETTE = [
 ];
 const MAX_COLOR_DIST = 40;
 const LETTERS = '.GYB';
+const ROWS = 6;
+const EMPTY_OUTLINE_MIN = 45; // NYT's empty-tile border is ~40 per channel off the page colour
 
 function classify(r, g, b) {
   let best = 0;
@@ -132,6 +134,47 @@ function longestBoardRun(rows, size) {
   return best;
 }
 
+// Summed RGB distance from the slot's centre colour to its edge, at the inset where the outline is strongest.
+function outlineContrast(data, w, { x, y, w: tw, h: th }) {
+  const at = (px, py) => (py * w + px) * 4;
+  const inner = [0, 0, 0];
+  let n = 0;
+  for (let py = y + Math.round(th * 0.3); py < y + th * 0.7; py++) {
+    for (let px = x + Math.round(tw * 0.3); px < x + tw * 0.7; px++, n++) {
+      for (let c = 0; c < 3; c++) inner[c] += data[at(px, py) + c];
+    }
+  }
+  for (let c = 0; c < 3; c++) inner[c] /= n;
+  let best = 0;
+  for (let d = 0; d <= 3; d++) {
+    let sum = 0;
+    let count = 0;
+    const edge = (px, py) => {
+      const i = at(px, py);
+      sum += Math.abs(data[i] - inner[0]) + Math.abs(data[i + 1] - inner[1]) + Math.abs(data[i + 2] - inner[2]);
+      count++;
+    };
+    for (let px = x + d; px < x + tw - d; px++) { edge(px, y + d); edge(px, y + th - 1 - d); }
+    for (let py = y + d; py < y + th - d; py++) { edge(x + d, py); edge(x + tw - 1 - d, py); }
+    best = Math.max(best, sum / count);
+  }
+  return best;
+}
+
+// A real board always shows all 6 rows; unplayed ones are empty outlined squares.
+// Counts the empty rows under the last guess, so a cropped board can't pass as a shorter game.
+function emptyRowsBelow(data, w, h, last, wanted) {
+  const pitch = (last.tiles[4].cx - last.tiles[0].cx) / 4;
+  let found = 0;
+  for (let k = 1; k <= wanted; k++) {
+    const slots = last.tiles.map((t) => ({ x: t.x, y: Math.round(t.y + pitch * k), w: t.w, h: t.h }));
+    const inside = slots.every((s) => s.y >= 0 && s.y + s.h <= h && s.x >= 0 && s.x + s.w <= w);
+    if (!inside || !slots.every((s) => outlineContrast(data, w, s) > EMPTY_OUTLINE_MIN)) break;
+    found++;
+  }
+  return found;
+}
+
 function summarise(grid, source) {
   const solvedAt = grid.indexOf('GGGGG');
   if (solvedAt >= 0) {
@@ -159,13 +202,17 @@ export function parsePixels(data, w, h) {
   const size = median(tiles.map((t) => t.w));
   const board = longestBoardRun(groupRows(tiles, size), size);
   if (!board.length) {
-    return { ok: false, note: "Couldn't line up the tiles into rows. Try a tighter screenshot." };
+    return { ok: false, note: "Couldn't line up the tiles into rows. Try a clearer screenshot of the whole board." };
   }
   const rows = board.slice(0, 6);
   const grid = rows.map((r) => r.tiles.map((t) => LETTERS[t.k]).join(''));
   const result = summarise(grid, 'screenshot');
+  const played = rows.slice(0, result.grid.length);
+  if (played.length < ROWS && emptyRowsBelow(data, w, h, played[played.length - 1], ROWS - played.length) < ROWS - played.length) {
+    return { ok: false, cropped: true, note: 'Show the whole board: all 6 rows, including the empty ones under your last guess.' };
+  }
   // Tile rectangles (same shape as grid) so letters can be read out of them.
-  result.boxes = rows.slice(0, result.grid.length).map((r) => r.tiles.map(({ x, y, w: tw, h: th }) => ({ x, y, w: tw, h: th })));
+  result.boxes = played.map((r) => r.tiles.map(({ x, y, w: tw, h: th }) => ({ x, y, w: tw, h: th })));
   return result;
 }
 

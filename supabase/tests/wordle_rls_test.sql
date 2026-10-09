@@ -25,6 +25,26 @@ set request.jwt.claim.sub = :'C';
 select pg_temp.check('C has no access', (select not public.site_has_access()));
 select pg_temp.expect_error('C cannot start a room', format('select public.wordle_create_room(%L, %L, %L)', 'Mine', 'Eve', '😈'));
 
+-- Request access: C can ask, sees only their own request, can't read others or approve themselves
+select pg_temp.check('C has not asked yet', (select public.my_access_request() is null));
+select pg_temp.check('C asks for access', (select public.request_access() is not null));
+select pg_temp.check('asking twice keeps the first time', (select public.request_access() = public.my_access_request()));
+select pg_temp.check('asking still gives no access', (select not public.site_has_access()));
+select pg_temp.expect_error('C cannot read the requests', 'select * from public.access_requests');
+select pg_temp.expect_error('C cannot approve themselves', format('insert into public.site_access values (%L)', :'C'));
+select pg_temp.expect_error('the clean-up trigger is not callable', 'select public.access_request_granted()');
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('A already has access, so asking does nothing', (select public.request_access() is null and public.my_access_request() is null));
+reset role;
+begin;
+insert into public.site_access values (:'C');
+select pg_temp.check('approving clears the request', (select not exists (select 1 from public.access_requests where user_id = :'C')));
+rollback;
+set role anon;
+select pg_temp.expect_error('signed-out visitors cannot ask', 'select public.request_access()');
+set role authenticated;
+set request.jwt.claim.sub = :'C';
+
 -- A creates a room
 set request.jwt.claim.sub = :'A';
 select invite_code as code, id as room from public.wordle_create_room('Us', 'Aryan', '🐻') \gset

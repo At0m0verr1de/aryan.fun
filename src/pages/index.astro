@@ -36,6 +36,10 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
       <div class="lock" aria-hidden="true">💌</div>
       <h1>Invite only, for now</h1>
       <p class="muted">You're signed in, but this place only opens with an invite.<br />If someone sent you a link, open that link again.</p>
+      <div class="ask">
+        <button class="btn" data-ask type="button" style="--pc:var(--pink)">Request access</button>
+        <p class="asked" data-asked hidden>Asked ✓ <span class="muted">Aryan will let you in soon. Check back later.</span></p>
+      </div>
       <button class="btn ghost" data-switch type="button">Use a different account</button>
     </section>
 
@@ -275,11 +279,28 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
       }
       track('access_denied');
       show('denied');
+      showAsked(await supabase.rpc('my_access_request').then(({ data }) => data).catch(() => null));
     } catch (err) {
       reportError(err, 'door-route');
       show('denied');
     }
   }
+
+  // Invite-only screen: one tap puts you on Aryan's list (the SQL editor approves).
+  const askBtn = document.querySelector<HTMLButtonElement>('[data-ask]')!;
+  const showAsked = (at: string | null) => {
+    askBtn.hidden = Boolean(at);
+    document.querySelector<HTMLElement>('[data-asked]')!.hidden = !at;
+  };
+  askBtn.addEventListener('click', async () => {
+    askBtn.disabled = true;
+    const { data, error } = await supabase.rpc('request_access');
+    askBtn.disabled = false;
+    if (error) { reportError(error, 'request-access'); return; }
+    if (data === null) { location.reload(); return; } // already let in
+    track('access_requested');
+    showAsked(data);
+  });
 
   route();
 </script>
@@ -294,6 +315,8 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
   .door h1, .denied h1 { margin: 10px 0 6px; font-size: clamp(2rem, 6vw, 2.8rem); }
   .door p, .denied p { margin: 0 0 24px; font-size: 1.05rem; line-height: 1.6; }
   .muted { color: var(--muted); }
+  .ask { margin: 0 0 18px; }
+  .asked { font-weight: 600; margin: 0; }
   .lock { font-size: 4rem; display: inline-block; animation: wiggle 2.6s ease-in-out infinite; }
   @keyframes wiggle { 0%, 78%, 100% { transform: rotate(0); } 84% { transform: rotate(-12deg); } 90% { transform: rotate(10deg); } 95% { transform: rotate(-5deg); } }
   .hearts { font-size: 1.8rem; display: flex; justify-content: center; gap: 10px; }

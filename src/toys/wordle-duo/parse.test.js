@@ -78,6 +78,38 @@ for (const c of cases) {
   });
 }
 
+// Keeps only image rows [top, bottom): what a cropped screenshot looks like.
+function crop({ data, w }, top, bottom) {
+  return { data: data.slice(top * w * 4, bottom * w * 4), w, h: bottom - top };
+}
+
+const SOLVED_IN_5 = ['BYYBB', 'BYBYG', 'GGBGG', 'GGBGG', 'GGGGG'];
+const pitch = 64 + 5;
+const rowTop = (r) => 150 + r * pitch;
+const cropCases = [
+  { name: 'top rows cropped off a 5-guess board', rows: SOLVED_IN_5, from: rowTop(3) - 3, to: 900 },
+  { name: 'empty rows cropped off the bottom', rows: SOLVED_IN_5, from: 0, to: rowTop(5) - 3 },
+  { name: 'only the last three rows of a 6-guess board', rows: ['BBBBB', 'YBBBB', 'GBYBB', 'GGBBY', 'GGGBY', 'GGGGG'], from: rowTop(3) - 3, to: 900 },
+  { name: 'last row cut in half', rows: SOLVED_IN_5, from: 0, to: rowTop(5) + 30 },
+];
+for (const c of cropCases) {
+  test(`cropped board is rejected: ${c.name}`, () => {
+    const img = crop(makeImage({ w: 416, h: 900, theme: 'light', tile: 64, gap: 5, top: 150, rows: c.rows }), c.from, c.to);
+    const got = parsePixels(img.data, img.w, img.h);
+    assert.equal(got.ok, false);
+    assert.equal(got.cropped, true);
+  });
+}
+
+test('a tight crop that keeps all 6 rows still reads', () => {
+  for (const theme of ['light', 'dark', 'contrast']) {
+    const img = crop(makeImage({ w: 416, h: 900, theme, tile: 64, gap: 5, top: 150, rows: SOLVED_IN_5 }), rowTop(0) - 4, rowTop(6) + 2);
+    const got = parsePixels(img.data, img.w, img.h);
+    assert.equal(got.ok, true, theme);
+    assert.equal(got.guesses, 5, theme);
+  }
+});
+
 test('empty board is rejected', () => {
   const blank = makeImage({ w: 416, h: 900, theme: 'dark', tile: 64, gap: 5, top: 150, rows: [], keyboard: false });
   assert.equal(parsePixels(blank.data, blank.w, blank.h).ok, false);
