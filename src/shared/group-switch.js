@@ -6,7 +6,7 @@ import { loadSpace, setGroup, groupChanged, setMode, EMOJIS, GROUP_ICONS, GROUP_
 import { track, reportError } from './telemetry.js';
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
-const WORDLE = `${BASE}wordle-duo/`;
+const WORDLE = `${BASE}wordle-leaderboard/`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const box = document.querySelector('[data-groups]');

@@ -95,7 +95,7 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
 
       <main class="toys">
         {publicToys.map((t, i) => (
-          <a class="toy" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
+          <a class="toy" href={`${base}${t.groupSlug ?? t.slug}/`} style={`--accent: var(--${t.accent})`}>
             <div class="art"><span class="num">{number(i)}</span>{isNew(t) && <span class="badge">new</span>}</div>
             <div class="body">
               <h3>{t.groupTitle ?? t.title}</h3>
@@ -231,7 +231,7 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
     const user = await currentUser();
     const g = user && (await loadSpace(user) as any).group;
     if (!g) return;
-    const link = `${location.origin}${import.meta.env.BASE_URL.replace(/\/?$/, '/')}wordle-duo/?join=${g.invite_code}`;
+    const link = `${location.origin}${import.meta.env.BASE_URL.replace(/\/?$/, '/')}wordle-leaderboard/?join=${g.invite_code}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: 'Wordle Leaderboard', text: `Join "${g.name}" on my Wordle leaderboard ${g.icon}`, url: link });

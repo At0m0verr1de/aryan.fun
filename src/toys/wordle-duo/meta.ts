@@ -6,6 +6,7 @@ export const meta: ToyMeta = {
   accent: 'pink',
   blurb: 'Daily Wordle showdown for two. Upload screenshots, no spoilers.',
   groupTitle: 'Wordle Leaderboard',
+  groupSlug: 'wordle-leaderboard',
   groupBlurb: 'Your group\'s daily Wordle, ranked. Upload screenshots, no spoilers.',
   added: '2026-10-09',
   tags: ['groups', 'daily'],

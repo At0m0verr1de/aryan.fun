@@ -65,7 +65,9 @@ function emojiPicker(name, chosen, choices = EMOJIS) {
   </div>`;
 }
 const pavatar = (p) => avatarHtml(memberIn(p));
-const inviteLink = (room = ui.room) => `${location.origin}${location.pathname}?join=${room.invite_code}`;
+// Couples share /wordle-duo/, groups /wordle-leaderboard/: one page, two addresses.
+const pathFor = (kind) => `${BASE}${kind === 'couple' ? 'wordle-duo' : 'wordle-leaderboard'}/`;
+const inviteLink = (room = ui.room) => `${location.origin}${pathFor(room.kind)}?join=${room.invite_code}`;
 
 function dayFor(puzzle) {
   const row = ui.results.get(puzzle) || {};
@@ -246,6 +248,7 @@ function setTitle(kind) {
   const crumb = document.querySelector('.crumb');
   if (crumb) crumb.lastChild.textContent = title;
   document.title = `${title} · made by aryan`;
+  if (location.pathname !== pathFor(kind)) history.replaceState(null, '', `${pathFor(kind)}${location.search}${location.hash}`);
 }
 
 function renderHeader() {

@@ -10,4 +10,5 @@ export interface ToyMeta {
   couple?: boolean;    // partner-only: shown on the couple home, never in general mode
   groupTitle?: string; // name and line in Groups mode, when they differ from the couple's
   groupBlurb?: string;
+  groupSlug?: string;  // route in Groups mode, when it differs (a second page for the same toy)
 }
