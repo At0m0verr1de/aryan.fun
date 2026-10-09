@@ -1,0 +1,31 @@
+---
+import Layout from '../shared/Layout.astro';
+---
+<Layout title="Privacy · made by aryan" description="What made by aryan stores and why." emoji="🔒" back>
+  <main class="card legal">
+    <h1>Privacy</h1>
+    <p class="muted">Last updated 9 October 2026</p>
+
+    <h2>What gets stored</h2>
+    <ul>
+      <li><strong>Your Google account basics</strong>: name, email, profile picture link, and an account ID, so you can sign in on any device.</li>
+      <li><strong>What you put into a toy</strong>: for example, in Wordle Duo, the display name and emoji you choose, the rooms you join, and the results you submit.</li>
+    </ul>
+    <p>Wordle screenshots are read inside your browser. The image is never uploaded; only the result (solved or not, number of guesses, tile colours) is saved.</p>
+
+    <h2>Who can see it</h2>
+    <p>Your results are visible only to the other people in rooms you join. Your email is never shown to other players. Nothing is sold, shared with advertisers, or used for tracking.</p>
+
+    <h2>Where it lives</h2>
+    <p>Data is stored with <a href="https://supabase.com">Supabase</a> and the site is served by <a href="https://www.cloudflare.com">Cloudflare</a>.</p>
+
+    <h2>Deleting it</h2>
+    <p>Leaving a room deletes your results in that room. To delete your account entirely, email <a href="mailto:aryanbakshi2021@gmail.com">aryanbakshi2021@gmail.com</a>.</p>
+  </main>
+</Layout>
+
+<style is:global>
+  .legal { max-width: 680px; margin: 24px auto; line-height: 1.6; }
+  .legal h2 { margin-top: 1.4em; font-size: 1.1rem; }
+  .legal ul { padding-left: 1.2em; }
+</style>

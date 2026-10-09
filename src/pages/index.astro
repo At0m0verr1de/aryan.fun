@@ -35,7 +35,7 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     </div>
   </main>
 
-  <footer>{toys.length} toy{toys.length === 1 ? '' : 's'} so far</footer>
+  <footer>{toys.length} toy{toys.length === 1 ? '' : 's'} so far · <a href={`${base}privacy/`}>privacy</a> · <a href={`${base}terms/`}>terms</a></footer>
 </Layout>
 
 <style>
@@ -61,4 +61,5 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     font-weight: 800; font-size: .72rem; padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
   }
   footer { margin-top: 40px; text-align: center; color: var(--faint); font-size: .85rem; }
+  footer a { color: inherit; }
 </style>
