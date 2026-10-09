@@ -44,6 +44,7 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
         <div class="faces"><span data-me-emoji></span><span class="heart beat">♥</span><span data-partner-emoji></span></div>
         <h1><span data-me-name></span> <span class="heart">♥</span> <span data-partner-name></span></h1>
         <p class="muted" data-together></p>
+        <button class="link-btn edit-since" type="button" data-edit-since hidden>day <span data-days></span> together ✎</button>
         <form class="since-form" data-since-form hidden>
           <label>Together since <input type="date" name="since" class="field-input" required /></label>
           <button class="btn" style="--pc:var(--heart)">Save</button>
@@ -130,11 +131,17 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
     signInWithGoogle().catch((err) => reportError(err, 'door-switch'));
   });
 
-  function togetherText(since: string | null) {
-    if (!since) return '';
-    const days = Math.floor((Date.now() - Date.parse(`${since}T00:00:00`)) / DAY_MS) + 1;
-    return days > 0 ? `day ${days.toLocaleString()} together` : '';
+  function daysTogether(since: string | null) {
+    if (!since) return 0;
+    return Math.max(0, Math.floor((Date.now() - Date.parse(`${since}T00:00:00`)) / DAY_MS) + 1);
   }
+
+  document.querySelector('[data-edit-since]')!.addEventListener('click', (e) => {
+    (e.currentTarget as HTMLElement).hidden = true;
+    const form = document.querySelector<HTMLFormElement>('[data-since-form]')!;
+    form.hidden = false;
+    form.querySelector('input')!.focus();
+  });
 
   async function showCouple(space: any) {
     const { me, partner, room } = space.couple;
@@ -142,8 +149,15 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
     set('[data-me-name]', me.display_name);
     set('[data-partner-emoji]', partner ? emojiOf(partner) : '💌');
     set('[data-partner-name]', partner ? partner.display_name : 'your person');
-    set('[data-together]', partner ? togetherText(room.since) : 'Send them the invite from Wordle Duo settings to complete the pair.');
-    document.querySelector<HTMLFormElement>('[data-since-form]')!.hidden = !partner || Boolean(room.since);
+    // Once the date is saved the form tucks away; tapping "day N together ✎" brings it back to edit.
+    const days = partner ? daysTogether(room.since) : 0;
+    const edit = document.querySelector<HTMLElement>('[data-edit-since]')!;
+    const form = document.querySelector<HTMLFormElement>('[data-since-form]')!;
+    set('[data-together]', partner ? '' : 'Send them the invite from Wordle Duo settings to complete the pair.');
+    set('[data-days]', days.toLocaleString());
+    edit.hidden = !days;
+    form.hidden = !partner || Boolean(room.since);
+    form.querySelector<HTMLInputElement>('input[name="since"]')!.value = room.since ?? '';
     show('couple');
     try {
       const data = await coupleHomeData(space, supabase);
@@ -225,6 +239,8 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
   .since-form { margin: 14px auto 0; display: flex; gap: 8px; justify-content: center; align-items: flex-end; flex-wrap: wrap; }
   .since-form label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; font-weight: 700; color: var(--muted); text-align: left; }
   .since-form .field-input { width: auto; color-scheme: dark; }
+  .edit-since { color: var(--muted); font-weight: 600; font-size: 1rem; }
+  .edit-since:hover { color: var(--text); }
 
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
   .tile { display: flex; flex-direction: column; gap: 6px; padding: 18px 18px 16px; border-radius: var(--radius); color: inherit; text-decoration: none; min-height: 150px;
