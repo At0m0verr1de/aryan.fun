@@ -16,16 +16,26 @@ let errorsSent = 0;
 let userId = null;
 let timer = null;
 
+// crypto.randomUUID only exists on https pages; getRandomValues works everywhere, so plain http can't break every page.
+function newId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const hex = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 // One id per browser tab; isNewSession is true only on the tab's first page.
 let isNew = false;
 const sessionId = (() => {
   try {
     let id = sessionStorage.getItem(SESSION_KEY);
-    if (!id) { id = crypto.randomUUID(); sessionStorage.setItem(SESSION_KEY, id); isNew = true; }
+    if (!id) { id = newId(); sessionStorage.setItem(SESSION_KEY, id); isNew = true; }
     return id;
   } catch {
     isNew = true;
-    return crypto.randomUUID();
+    return newId();
   }
 })();
 export const isNewSession = isNew;
