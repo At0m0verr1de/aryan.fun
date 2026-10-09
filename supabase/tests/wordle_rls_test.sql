@@ -130,6 +130,37 @@ select pg_temp.check('A can turn the couple off', (select kind = 'duo' and since
 select pg_temp.check('and back on', (select kind = 'couple' from public.wordle_set_couple(:'room', true)));
 select pg_temp.expect_error('in_couple is not callable by players', format('select public.wordle_in_couple(%L)', :'A'));
 
+-- Drinks: you and your partner only (A and B are a couple; C shares only a duo room with A)
+insert into public.drinks (day, kind, ml, abv, qty) values (current_date, 'beer', 330, 5, 2) returning id as drink \gset
+set request.jwt.claim.sub = :'B';
+select pg_temp.check('partner sees the drink', (select count(*) = 1 from public.drinks where user_id = :'A'));
+select pg_temp.expect_error('partner cannot log as A', format(
+  'insert into public.drinks (user_id, day, kind, ml, abv) values (%L, current_date, %L, 30, 40)', :'A', 'shot'));
+select pg_temp.expect_error('no drinks from the future', 'insert into public.drinks (day, kind, ml, abv) values (current_date + 3, ''shot'', 30, 40)');
+select pg_temp.expect_error('silly strength is rejected', 'insert into public.drinks (day, kind, ml, abv) values (current_date, ''shot'', 30, 140)');
+delete from public.drinks where id = :'drink';
+insert into public.drink_days (day, hangover, note) values (current_date, 2, 'never again')
+  on conflict (user_id, day) do update set day = excluded.day, hangover = excluded.hangover, note = excluded.note;
+insert into public.drink_days (day, hangover, note) values (current_date, 3, 'okay maybe again')
+  on conflict (user_id, day) do update set day = excluded.day, hangover = excluded.hangover, note = excluded.note;
+select pg_temp.check('hangover note upserts', (select hangover = 3 from public.drink_days where user_id = :'B'));
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('partner could not delete the drink', (select count(*) = 1 from public.drinks where id = :'drink'));
+select pg_temp.check('A reads B''s hangover note', (select note = 'okay maybe again' from public.drink_days where user_id = :'B'));
+insert into public.drink_goals (weekly_shots) values (10)
+  on conflict (user_id) do update set weekly_shots = excluded.weekly_shots;
+update public.drink_days set note = 'edited' where user_id = :'B';
+select pg_temp.check('A cannot edit B''s note', (select note = 'okay maybe again' from public.drink_days where user_id = :'B'));
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('a friend sees no drinks', (select count(*) = 0 from public.drinks));
+select pg_temp.check('a friend sees no notes or goals', (select count(*) = 0 from public.drink_days) and (select count(*) = 0 from public.drink_goals));
+set request.jwt.claim.sub = :'B';
+select pg_temp.check('partner sees the goal', (select weekly_shots = 10 from public.drink_goals where user_id = :'A'));
+select public.wordle_set_couple(:'room', false);
+select pg_temp.check('after unpairing the drinks are private again', (select count(*) = 0 from public.drinks where user_id = :'A'));
+select public.wordle_set_couple(:'room', true);
+set request.jwt.claim.sub = :'A';
+
 -- Shared tables
 select pg_temp.check('counter bumps', (select public.bump_counter('wordle-duo', 'plays') = 1 and public.bump_counter('wordle-duo', 'plays') = 2));
 insert into public.scores (toy, display_name, value) values ('wordle-duo', 'Aryan', 3);

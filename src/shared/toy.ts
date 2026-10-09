@@ -7,4 +7,5 @@ export interface ToyMeta {
   added: string;       // YYYY-MM-DD, drives ordering and the "new" badge
   tags?: string[];
   hidden?: boolean;    // keep work-in-progress toys off the homepage
+  couple?: boolean;    // partner-only: shown on the couple home, never in general mode
 }

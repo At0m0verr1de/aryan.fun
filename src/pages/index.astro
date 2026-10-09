@@ -11,9 +11,10 @@ const toys = Object.values(modules)
   .map((m) => m.meta)
   .filter((t) => !t.hidden)
   .sort((a, b) => b.added.localeCompare(a.added));
+const publicToys = toys.filter((t) => !t.couple); // couple-only toys never show in general mode
 const isNew = (t: ToyMeta) => Date.now() - Date.parse(t.added) < NEW_FOR_DAYS * DAY_MS;
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
-const number = (i: number) => String(toys.length - i).padStart(2, '0');
+const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
 ---
 <Layout title="made by aryan">
   <!-- One page, five views. Everyone starts at the door; the database decides who gets further. -->
@@ -55,13 +56,9 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
           <a class="tile" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
             <span class="tile-title">{t.title}</span>
             <span class="tile-status" data-status={t.slug}>{t.blurb}</span>
-            <span class="tile-go">Play <Fragment set:html={ARROW(16)} /></span>
+            <span class="tile-go">{t.couple ? 'Open' : 'Play'} <Fragment set:html={ARROW(16)} /></span>
           </a>
         ))}
-        <div class="tile soon" style="--accent: var(--gold)">
-          <span class="tile-title">Drinks</span>
-          <span class="tile-status">Track it together, month by month. Coming next ✨</span>
-        </div>
         <div class="tile tally" data-tally hidden>
           <span class="tile-title">This month</span>
           <span class="tile-status" data-tally-text></span>
@@ -78,11 +75,11 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
 
       <div class="section-head">
         <h2>Toys</h2>
-        <span>{toys.length} so far</span>
+        <span>{publicToys.length} so far</span>
       </div>
 
       <main class="toys">
-        {toys.map((t, i) => (
+        {publicToys.map((t, i) => (
           <a class="toy" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
             <div class="art"><span class="num">{number(i)}</span>{isNew(t) && <span class="badge">new</span>}</div>
             <div class="body">
@@ -116,6 +113,7 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
   import { loadSpace, forgetSpace, emojiOf } from '../shared/space.js';
   import { track, reportError } from '../shared/telemetry.js';
   import { coupleHomeData } from '../toys/wordle-duo/summary.js';
+  import { drinksHomeData } from '../toys/drinks/summary.js';
 
   const DAY_MS = 86400000;
   const views = document.querySelector<HTMLElement>('.views')!;
@@ -159,6 +157,9 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
     form.hidden = !partner || Boolean(room.since);
     form.querySelector<HTMLInputElement>('input[name="since"]')!.value = room.since ?? '';
     show('couple');
+    drinksHomeData(space, supabase)
+      .then((line) => set('[data-status="drinks"]', line))
+      .catch((err) => reportError(err, 'couple-home-drinks'));
     try {
       const data = await coupleHomeData(space, supabase);
       set('[data-status="wordle-duo"]', data.today);
