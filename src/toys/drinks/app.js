@@ -5,7 +5,7 @@ import { track, reportError } from '../../shared/telemetry.js';
 import * as api from './api.js';
 import {
   KINDS, HANGOVERS, shotsOf, round1, bottlesOf, currentNight, dateStr, addDays, mondayOf, monthStart, monthEnd,
-  addMonths, personStats, dryStreak, weeksOf, monthsOf, hangoverInsight, pitcherLevels, shotsByDay,
+  addMonths, personStats, dryStreak, weeksOf, monthsOf, hangoverInsight, jugOf, shotsByDay,
 } from './stats.js';
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
@@ -67,15 +67,22 @@ function changed() {
 }
 
 /* ---------- pitchers ---------- */
-function pitcherSvg(level, colour) {
+function pitcherSvg(level, colour, cap, over) {
   const height = JUG_BOTTOM - JUG_TOP;
   const drop = Math.round((1 - level) * height);
   const body = `M22 ${JUG_TOP} H92 L87 132 Q86 ${JUG_BOTTOM} 77 ${JUG_BOTTOM} H37 Q28 ${JUG_BOTTOM} 27 132 Z`;
-  const ticks = [0.25, 0.5, 0.75].map((t) => {
+  // Marks at a third, two thirds and the brim: 5 / 10 / 15 shots for a month.
+  const ticks = [1 / 3, 2 / 3, 1].map((t) => {
     const y = JUG_BOTTOM - t * height;
-    return `<line x1="30" x2="40" y1="${y}" y2="${y}" class="tick"/>`;
+    return `<line x1="30" x2="40" y1="${y}" y2="${y}" class="tick"/><text x="44" y="${y + 3.5}" class="tick-label">${Math.round(cap * t)}</text>`;
   }).join('');
-  return `<svg class="pitcher" viewBox="0 0 130 150" aria-hidden="true">
+  // Over the brim: it spills down the side.
+  const spill = over ? `<g class="spill" style="color:${colour}">
+      <path d="M14 ${JUG_TOP - 10} q -6 10 -2 26 q 3 12 -1 30" />
+      <circle cx="11" cy="${JUG_TOP + 52}" r="3.2" class="drip"/><circle cx="16" cy="${JUG_TOP + 20}" r="2.4" class="drip d2"/>
+      <ellipse cx="18" cy="147" rx="16" ry="2.6" class="puddle"/>
+    </g>` : '';
+  return `<svg class="pitcher${over ? ' over' : ''}" viewBox="0 0 130 150" aria-hidden="true">
     <defs><clipPath id="jug-${colour.replace(/\W/g, '')}"><path d="${body}"/></clipPath></defs>
     <g clip-path="url(#jug-${colour.replace(/\W/g, '')})">
       <g class="liquid" style="--drop:${drop}px; color:${colour}">
@@ -88,6 +95,7 @@ function pitcherSvg(level, colour) {
     <path d="${body}" class="glass"/>
     <path d="M90 42 C118 44 118 104 86 108" class="handle"/>
     <path d="M22 ${JUG_TOP} L12 ${JUG_TOP - 9}" class="glass"/>
+    ${spill}
   </svg>`;
 }
 
@@ -97,15 +105,30 @@ function renderPitchers() {
   $('nextBtn').disabled = ui.view === 'year' ? to.slice(0, 4) >= today().slice(0, 4) : addMonths(ui.anchor, 1) > today();
   document.querySelectorAll('[data-view-btn]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.viewBtn === ui.view)));
   const stats = ui.members.map((m) => personStats(ui.drinks, m.user_id, from, to, today()));
-  const levels = pitcherLevels(stats.map((s) => s.total));
+  const months = ui.view === 'year' ? 12 : 1;
+  const jugs = stats.map((s) => jugOf(s.total, months));
+  const levels = jugs.map((j) => j.level);
+  const span = ui.view === 'year' ? 'year' : 'month';
+  const live = from <= today() && today() <= to;
   $('pitchers').innerHTML = ui.members.map((m, i) => {
     const s = stats[i];
+    const jug = jugs[i];
+    const mine = m.user_id === ui.me;
     const bottles = bottlesOf(s.total);
-    return `<div class="jug" style="--pc:${slotVar(m)}">
+    let verdict = '';
+    if (jug.over) {
+      verdict = live
+        ? `<div class="cutoff">${mine ? 'Fuck you, alcoholic.' : `${esc(m.display_name)}, you alcoholic.`}<br>Cut off for the rest of the ${span} 🚫</div>`
+        : `<div class="cutoff past">Got cut off this ${span} 🚫</div>`;
+    } else if (live) {
+      verdict = `<div class="jug-left${jug.left <= 3 ? ' close' : ''}">${jug.left <= 3 ? '😬 ' : ''}${jug.left} shot${jug.left === 1 ? '' : 's'} left this ${span}</div>`;
+    }
+    return `<div class="jug${jug.over ? ' is-over' : ''}" style="--pc:${slotVar(m)}">
       <div class="jug-who"><span class="jug-emoji">${esc(emojiOf(m))}</span>${esc(m.display_name)}</div>
-      ${pitcherSvg(ui.filled ? levels[i] : 0, slotVar(m))}
-      <div class="jug-num">${round1(s.total)}<small> shots</small></div>
+      <div class="jug-art">${pitcherSvg(ui.filled ? levels[i] : 0, slotVar(m), jug.cap, jug.over)}${jug.over ? '<span class="stamp">CUT OFF</span>' : ''}</div>
+      <div class="jug-num">${round1(s.total)}<small> / ${jug.cap} shots</small></div>
       <div class="jug-sub">${bottles >= 0.1 ? `≈ ${round1(bottles)} bottle${round1(bottles) === 1 ? '' : 's'} of vodka · ` : ''}${s.dry} dry day${s.dry === 1 ? '' : 's'} 🌱</div>
+      ${verdict}
     </div>`;
   }).join('');
   if (!ui.filled) {
@@ -119,6 +142,12 @@ function renderPitchers() {
 }
 
 /* ---------- logging ---------- */
+// Past this month's 15 shots already? The add button gets judgemental.
+function cutOff() {
+  const start = monthStart(today());
+  return jugOf(personStats(ui.drinks, ui.me, start, monthEnd(start), today()).total).over;
+}
+
 function renderComposer() {
   const c = ui.compose;
   const kind = KINDS[c.kind];
@@ -143,7 +172,7 @@ function renderComposer() {
     </div>
     <div class="row add-row">
       <div class="qty"><button data-action="qty" data-n="-1" aria-label="One less">−</button><b>${c.qty}</b><button data-action="qty" data-n="1" aria-label="One more">+</button></div>
-      <button class="btn add" data-action="add">Add ${kind.emoji} · ${shotsLabel(adding)}</button>
+      <button class="btn add" data-action="add">${cutOff() ? 'Add anyway 🙄' : 'Add'} ${kind.emoji} · ${shotsLabel(adding)}</button>
     </div>`;
 }
 

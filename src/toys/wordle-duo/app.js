@@ -117,6 +117,8 @@ async function showHome() {
   history.replaceState(null, '', location.pathname);
   let rooms = [];
   try { rooms = await api.listMyRooms(); } catch (e) { fail(e, 'list-rooms'); }
+  // Your partner lives in partner mode only; Groups lists everything else.
+  rooms = rooms.filter((r) => r.kind !== 'couple');
   const single = !ui.space?.couple;
   const create = ui.space?.access ? `
       <form class="card" data-form="create">
@@ -183,7 +185,7 @@ async function openRoom(roomId) {
     fail(e, 'open-room');
     return false;
   }
-  store.set(LAST_ROOM_KEY, roomId);
+  if (roomId !== ui.space?.couple?.room.id) store.set(LAST_ROOM_KEY, roomId);
   history.replaceState(null, '', `${location.pathname}?room=${roomId}`);
   ui.live?.close();
   ui.live = api.subscribe(roomId, () => refresh());
@@ -926,9 +928,11 @@ async function boot() {
     fail(e, 'load-space');
   }
   if (params.get('join')) { await showJoin(params.get('join')); return; }
-  // Partner mode: Wordle simply is your couple room, no room picking.
-  const coupleRoom = ui.space?.mode === 'couple' ? ui.space.couple.room.id : null;
-  const roomId = params.get('room') || coupleRoom || store.get(LAST_ROOM_KEY);
+  // Partner mode: Wordle simply is your couple room. Groups never opens it.
+  const coupleRoom = ui.space?.couple?.room.id ?? null;
+  const roomId = ui.space?.mode === 'couple'
+    ? coupleRoom
+    : [params.get('room'), store.get(LAST_ROOM_KEY)].find((id) => id && id !== coupleRoom);
   if (roomId && await openRoom(roomId)) return;
   await showHome();
 }

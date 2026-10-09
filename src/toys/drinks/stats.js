@@ -141,8 +141,9 @@ export function hangoverInsight(drinks, notes, userId) {
 }
 
 // How full each pitcher is: the bigger total sits at ~85%, so both always read at a glance.
-export function pitcherLevels(totals) {
-  const most = Math.max(0, ...totals);
-  if (!most) return totals.map(() => 0);
-  return totals.map((t) => Math.min(1, (t / most) * 0.85));
+// A month's jug holds 15 shots (a year's holds 12 of them). Past the brim you're cut off.
+export const JUG_SHOTS = 15;
+export function jugOf(total, months = 1) {
+  const cap = JUG_SHOTS * months;
+  return { cap, level: Math.min(1, total / cap), left: round1(Math.max(0, cap - total)), over: total > cap };
 }

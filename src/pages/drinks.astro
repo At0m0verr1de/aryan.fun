@@ -21,7 +21,7 @@ import { meta } from '../toys/drinks/meta';
 
     <section class="card pitchers-card">
       <div class="pitchers" id="pitchers"></div>
-      <p class="unit">1 shot = 30 ml at 40%, whatever you actually drank</p>
+      <p class="unit">1 shot = 30 ml at 40%, whatever you actually drank. The jug holds 15 a month.</p>
     </section>
 
     <section class="card">
@@ -87,6 +87,25 @@ import { meta } from '../toys/drinks/meta';
   .pitcher .bubble.b2 { animation-delay: 1s; } .pitcher .bubble.b3 { animation-delay: 2s; }
   @keyframes bubble { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-90px); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .pitcher .wave, .pitcher .bubble { animation: none; } .pitcher .liquid { transition: none; } }
+  .pitcher .tick-label { fill: color-mix(in srgb, var(--text) 45%, transparent); font: 700 8px Nunito, sans-serif; }
+  .jug-art { position: relative; }
+  .jug.is-over .pitcher { animation: wobble 2.4s ease-in-out infinite; transform-origin: 50% 100%; }
+  @keyframes wobble { 0%, 70%, 100% { transform: rotate(0); } 76% { transform: rotate(-4deg); } 82% { transform: rotate(3.5deg); } 88% { transform: rotate(-2deg); } 94% { transform: rotate(1deg); } }
+  .pitcher .spill path { fill: none; stroke: currentColor; stroke-width: 5; stroke-linecap: round; opacity: .8; }
+  .pitcher .spill .drip { fill: currentColor; animation: drip 1.6s ease-in infinite; }
+  .pitcher .spill .drip.d2 { animation-delay: .8s; }
+  @keyframes drip { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(60px); opacity: 0; } }
+  .pitcher .spill .puddle { fill: currentColor; opacity: .55; }
+  .stamp { position: absolute; top: 42%; left: 50%; white-space: nowrap; transform: translate(-50%, -50%) rotate(-14deg); pointer-events: none;
+    font-family: Fredoka; font-weight: 700; font-size: clamp(1.1rem, 4vw, 1.6rem); letter-spacing: 2px; color: var(--danger);
+    border: 3px solid var(--danger); border-radius: 8px; padding: 2px 10px; background: color-mix(in srgb, var(--bg) 55%, transparent);
+    animation: stamp .5s cubic-bezier(.3, 1.6, .5, 1) both .9s; }
+  @keyframes stamp { from { transform: translate(-50%, -50%) rotate(-14deg) scale(2.2); opacity: 0; } }
+  .cutoff { margin: 8px auto 0; max-width: 260px; font-weight: 800; color: var(--danger); font-size: .9rem; line-height: 1.35; }
+  .cutoff.past { color: var(--muted); font-weight: 700; }
+  .jug-left { margin-top: 6px; font-size: .84rem; font-weight: 700; color: var(--muted); }
+  .jug-left.close { color: var(--gold); }
+  @media (prefers-reduced-motion: reduce) { .jug.is-over .pitcher, .pitcher .spill .drip, .stamp { animation: none; } }
   .jug-num { font-family: Fredoka; font-size: 2.3rem; font-weight: 700; line-height: 1; color: var(--text); }
   .jug-num small { font-size: 1rem; color: var(--muted); font-weight: 500; }
   .jug-sub { color: var(--muted); font-size: .84rem; margin-top: 4px; }

@@ -45,7 +45,7 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
         <div class="faces"><span data-me-emoji></span><span class="heart beat">♥</span><span data-partner-emoji></span></div>
         <h1><span data-me-name></span> <span class="heart">♥</span> <span data-partner-name></span></h1>
         <p class="muted" data-together></p>
-        <button class="link-btn edit-since" type="button" data-edit-since hidden>day <span data-days></span> together ✎</button>
+        <button class="link-btn edit-since" type="button" data-edit-since hidden><span data-days></span> ✎</button>
         <form class="since-form" data-since-form hidden>
           <label>Together since <input type="date" name="since" class="field-input" required /></label>
           <button class="btn" style="--pc:var(--heart)">Save</button>
@@ -114,8 +114,9 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
   import { track, reportError } from '../shared/telemetry.js';
   import { coupleHomeData } from '../toys/wordle-duo/summary.js';
   import { drinksHomeData } from '../toys/drinks/summary.js';
+  import { dateStr } from '../toys/drinks/stats.js';
+  import { togetherLabel } from '../shared/together.js';
 
-  const DAY_MS = 86400000;
   const views = document.querySelector<HTMLElement>('.views')!;
   const show = (view: string) => { views.dataset.view = view; };
   const set = (sel: string, text: string) => { document.querySelector(sel)!.textContent = text; };
@@ -128,11 +129,6 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
   document.querySelector('[data-switch]')!.addEventListener('click', () => {
     signInWithGoogle().catch((err) => reportError(err, 'door-switch'));
   });
-
-  function daysTogether(since: string | null) {
-    if (!since) return 0;
-    return Math.max(0, Math.floor((Date.now() - Date.parse(`${since}T00:00:00`)) / DAY_MS) + 1);
-  }
 
   document.querySelector('[data-edit-since]')!.addEventListener('click', (e) => {
     (e.currentTarget as HTMLElement).hidden = true;
@@ -147,13 +143,13 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
     set('[data-me-name]', me.display_name);
     set('[data-partner-emoji]', partner ? emojiOf(partner) : '💌');
     set('[data-partner-name]', partner ? partner.display_name : 'your person');
-    // Once the date is saved the form tucks away; tapping "day N together ✎" brings it back to edit.
-    const days = partner ? daysTogether(room.since) : 0;
+    // Once the date is saved the form tucks away; tapping the "together ✎" line brings it back to edit.
+    const together = partner ? togetherLabel(room.since, dateStr(new Date())) : null;
     const edit = document.querySelector<HTMLElement>('[data-edit-since]')!;
     const form = document.querySelector<HTMLFormElement>('[data-since-form]')!;
     set('[data-together]', partner ? '' : 'Send them the invite from Wordle Duo settings to complete the pair.');
-    set('[data-days]', days.toLocaleString());
-    edit.hidden = !days;
+    set('[data-days]', together ?? '');
+    edit.hidden = !together;
     form.hidden = !partner || Boolean(room.since);
     form.querySelector<HTMLInputElement>('input[name="since"]')!.value = room.since ?? '';
     show('couple');

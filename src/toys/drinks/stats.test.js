@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   shotsOf, round1, bottlesOf, currentNight, personStats, dryStreak, weeksOf, monthsOf,
-  hangoverInsight, pitcherLevels, monthEnd, addMonths, mondayOf,
+  hangoverInsight, jugOf, monthEnd, addMonths, mondayOf,
 } from './stats.js';
 import { drinksLine } from './summary.js';
 
@@ -83,9 +83,12 @@ test('hangover insight needs a few rated nights of each kind', () => {
   assert.equal(hangoverInsight(many, notes.slice(0, 3), A), null);
 });
 
-test('the fuller pitcher sits at 85%', () => {
-  assert.deepEqual(pitcherLevels([10, 5]), [0.85, 0.425]);
-  assert.deepEqual(pitcherLevels([0, 0]), [0, 0]);
+test('the jug holds 15 shots a month, 180 a year, then you are cut off', () => {
+  assert.deepEqual(jugOf(0), { cap: 15, level: 0, left: 15, over: false });
+  assert.deepEqual(jugOf(6), { cap: 15, level: 0.4, left: 9, over: false });
+  assert.deepEqual(jugOf(15), { cap: 15, level: 1, left: 0, over: false });
+  assert.deepEqual(jugOf(15.1), { cap: 15, level: 1, left: 0, over: true });
+  assert.deepEqual(jugOf(90, 12), { cap: 180, level: 0.5, left: 90, over: false });
 });
 
 test('home line shows this week, or a dry week', () => {
