@@ -3,6 +3,8 @@
 Small, silly, playable things at **https://madebyaryan.aryanbakshi2021.workers.dev**.
 
 Static Astro site on Cloudflare Workers (static assets), with Supabase for accounts, data, and realtime.
+
+Partner-first: signed-out visitors see a locked door; people with a partner get a couple home with every game set up 1v1; everyone else invited gets general mode. Invite-only for now (add someone manually with `insert into public.site_access values ('<user id>')`).
 Every toy is a folder; the homepage builds itself from those folders.
 
 ## Run it

@@ -1,5 +1,6 @@
 // Wordle Duo UI: onboarding (create / join a room) and the room view.
-import { isConfigured, currentUser, signInWithGoogle, firstName, avatarUrl } from '../../shared/supabase.js';
+import { isConfigured, currentUser, signInWithGoogle, firstName } from '../../shared/supabase.js';
+import { loadSpace, forgetSpace, emojiOf, EMOJIS } from '../../shared/space.js';
 import { track, reportError } from '../../shared/telemetry.js';
 import { GOOGLE } from '../../shared/icons.js';
 import { buildTemplates, browserRenderer, REFERENCE_FONTS, readGlyphs, scoreBoard, learnFromGreens } from './ocr.js';
@@ -17,7 +18,6 @@ const HISTORY_PAGE = 21;
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const CALENDAR_WEEKS = 12;
 const LAST_ROOM_KEY = 'wordle-duo:last-room';
-const LEGACY_EMOJI = '-'; // the RPCs still take an emoji; avatars now come from Google
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -32,7 +32,7 @@ const store = {
 const ui = {
   me: null,
   myName: '',
-  myAvatar: null,
+  space: null,          // couple, rooms, access and mode (src/shared/space.js)
   room: null,
   members: [],
   results: new Map(),   // puzzle → { [userId]: result } (only rows the no-spoiler rule lets us see)
@@ -49,13 +49,16 @@ const ui = {
 const memberIn = (p) => ui.members.find((m) => m.slot === (p === 'p1' ? 1 : 2));
 const mySlot = () => SLOTS.find((p) => memberIn(p)?.user_id === ui.me);
 const pname = (p) => esc(memberIn(p)?.display_name ?? 'your person');
-// Google photo when we have one, otherwise the first letter of their name.
-function avatarHtml(m) {
-  if (!m) return '<span class="avatar empty">?</span>';
-  const letter = esc((m.display_name || '?').charAt(0).toUpperCase());
-  return m.avatar_url
-    ? `<span class="avatar"><img src="${esc(m.avatar_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">${letter}</span>`
-    : `<span class="avatar">${letter}</span>`;
+const avatarHtml = (m) => (m ? `<span class="avatar emo">${esc(emojiOf(m))}</span>` : '<span class="avatar empty">?</span>');
+const isCouple = () => ui.room?.kind === 'couple';
+const inCoupleMode = () => ui.space?.mode === 'couple' && isCouple();
+
+// A row of emoji buttons feeding a hidden input, for the create/join forms and settings.
+function emojiPicker(name, chosen) {
+  return `<div class="emoji-pick" data-emoji-pick>
+    <input type="hidden" name="${name}" value="${esc(chosen)}">
+    ${EMOJIS.map((e) => `<button type="button" class="${e === chosen ? 'on' : ''}" data-pick="${e}" aria-label="${e}">${e}</button>`).join('')}
+  </div>`;
 }
 const pavatar = (p) => avatarHtml(memberIn(p));
 const inviteLink = () => `${location.origin}${location.pathname}?join=${ui.room.invite_code}`;
@@ -98,11 +101,10 @@ function showGate(html) {
 }
 
 function showSignIn(authError) {
-  const joining = new URLSearchParams(location.search).has('join');
   showGate(`
     <div class="card center narrow">
-      <h2>${joining ? 'You\'ve been invited' : 'Wordle, but make it a duo'}</h2>
-      <p class="muted">Sign in so your rooms and scores follow you to any device.</p>
+      <h2>You've been invited</h2>
+      <p class="muted">Sign in with Google to accept. 💌</p>
       ${authError ? `<p class="muted" style="color:var(--danger)">${esc(authError)}</p>` : ''}
       <button class="google-btn" data-action="google">${GOOGLE}Continue with Google</button>
     </div>`);
@@ -115,17 +117,26 @@ async function showHome() {
   history.replaceState(null, '', location.pathname);
   let rooms = [];
   try { rooms = await api.listMyRooms(); } catch (e) { fail(e, 'list-rooms'); }
-  showGate(`
-    <div class="gate-grid">
-      ${rooms.length ? `<div class="card span"><h2>Your rooms</h2><div class="room-list">${rooms.map((r) =>
-        `<button class="btn ghost" data-action="open-room" data-id="${r.id}">${esc(r.name)}</button>`).join('')}</div></div>` : ''}
+  const single = !ui.space?.couple;
+  const create = ui.space?.access ? `
       <form class="card" data-form="create">
         <h2>Start a room</h2>
         <p class="muted">Make a room, send the invite link to your person, and the daily showdown begins.</p>
         <label>Room name<input class="field-input" name="room" maxlength="40" value="Us" required></label>
         <label>Your name<input class="field-input" name="name" maxlength="24" placeholder="Aryan" value="${esc(ui.myName)}" required></label>
+        <label>Your emoji</label>${emojiPicker('emoji', EMOJIS[0])}
+        ${single ? '<label class="check"><input type="checkbox" name="couple"> This is for my partner 💞</label>' : ''}
         <button class="btn" style="--pc:var(--pink)">Create room</button>
-      </form>
+      </form>` : `
+      <div class="card">
+        <h2>Invite only, for now</h2>
+        <p class="muted">Rooms open with an invite. If someone sent you a code, pop it in here. 💌</p>
+      </div>`;
+  showGate(`
+    <div class="gate-grid">
+      ${rooms.length ? `<div class="card span"><h2>Your rooms</h2><div class="room-list">${rooms.map((r) =>
+        `<button class="btn ghost" data-action="open-room" data-id="${r.id}">${r.kind === 'couple' ? '💞 ' : ''}${esc(r.name)}</button>`).join('')}</div></div>` : ''}
+      ${create}
       <form class="card" data-form="code">
         <h2>Got a code?</h2>
         <p class="muted">If someone sent you a 6-letter code, pop it in.</p>
@@ -151,11 +162,13 @@ async function showJoin(code) {
     return;
   }
   const who = preview.member_names.map(esc).join(' &amp; ');
+  const asPartner = preview.room_kind === 'couple';
   showGate(`
     <form class="card center narrow" data-form="join" data-code="${esc(code)}">
       <h2>Join “${esc(preview.room_name)}”</h2>
-      ${who ? `<p class="muted">with ${who}</p>` : ''}
+      ${who ? `<p class="muted">${asPartner ? `${who} wants you as their partner 💞` : `with ${who}`}</p>` : ''}
       <label>Your name<input class="field-input" name="name" maxlength="24" value="${esc(ui.myName)}" required></label>
+      <label>Your emoji</label>${emojiPicker('emoji', EMOJIS[1])}
       <button class="btn" style="--pc:var(--pink)">Join</button>
     </form>`);
 }
@@ -170,7 +183,6 @@ async function openRoom(roomId) {
     fail(e, 'open-room');
     return false;
   }
-  syncAvatar();
   store.set(LAST_ROOM_KEY, roomId);
   history.replaceState(null, '', `${location.pathname}?room=${roomId}`);
   ui.live?.close();
@@ -179,20 +191,6 @@ async function openRoom(roomId) {
   $('room-view').hidden = false;
   render();
   return true;
-}
-
-// Keep my room photo in step with my Google photo (it changes when they change it on Google).
-async function syncAvatar() {
-  const me = ui.members.find((m) => m.user_id === ui.me);
-  if (!me || !ui.myAvatar || me.avatar_url === ui.myAvatar) return;
-  try {
-    await api.updateMe(ui.room.id, ui.me, { avatar_url: ui.myAvatar });
-    me.avatar_url = ui.myAvatar;
-    renderHeader();
-    ui.live?.ping();
-  } catch (e) {
-    reportError(e, 'sync-avatar');
-  }
 }
 
 // Refetch; celebrate if the selected day's winner just became visible.
@@ -223,7 +221,8 @@ function miniGrid(grid, size = '', words = null) {
 const sourceLabel = (r) => ({ screenshot: '📸 screenshot', text: '📋 share text', manual: '✍️ by hand' }[r.source] || '') + (r.verified ? ' · ✅ checked' : '');
 
 function renderHeader() {
-  $('vs').innerHTML = `<span class="a">${pavatar('p1')}${pname('p1')}</span><span class="vs-x">vs</span><span class="b">${pname('p2')}${pavatar('p2')}</span>`;
+  const between = isCouple() ? '<span class="heart beat">♥</span>' : '<span class="vs-x">vs</span>';
+  $('vs').innerHTML = `<span class="a">${pavatar('p1')}${pname('p1')}</span>${between}<span class="b">${pname('p2')}${pavatar('p2')}</span>`;
   $('room-name').textContent = ui.room.name;
 }
 
@@ -670,19 +669,32 @@ async function handleManual(g) {
 function openSettings() {
   const me = ui.members.find((m) => m.user_id === ui.me);
   $('set-name').value = me?.display_name ?? '';
+  $('set-emoji').innerHTML = emojiPicker('emoji', emojiOf(me));
   $('set-room').value = ui.room.name;
   $('set-room').disabled = ui.room.created_by !== ui.me;
   $('set-invite').textContent = inviteLink();
+  $('set-couple').hidden = !isCouple();
+  $('set-since').value = ui.room.since ?? '';
+  // Turning a duo into your couple room: only when it's just the two of you and you're both single.
+  $('make-couple').hidden = isCouple() || Boolean(ui.space?.couple) || ui.room.max_members !== 2;
+  for (const id of ['switch-room-btn', 'leave-room-btn']) $(id).hidden = inCoupleMode();
   $('settings').showModal();
 }
 
 async function saveSettings() {
   const me = ui.members.find((m) => m.user_id === ui.me);
   const name = $('set-name').value.trim();
+  const emoji = $('settings').querySelector('input[name="emoji"]').value;
   const roomName = $('set-room').value.trim();
+  const since = $('set-since').value || null;
   try {
-    if (me && name && name !== me.display_name) await api.updateMe(ui.room.id, ui.me, { display_name: name });
+    const patch = {};
+    if (me && name && name !== me.display_name) patch.display_name = name;
+    if (me && emoji && emoji !== me.emoji) patch.emoji = emoji;
+    if (Object.keys(patch).length) await api.updateMe(ui.room.id, ui.me, patch);
     if (ui.room.created_by === ui.me && roomName && roomName !== ui.room.name) await api.renameRoom(ui.room.id, roomName);
+    if (isCouple() && since !== (ui.room.since ?? null)) await api.setCouple(ui.room.id, true, since);
+    forgetSpace();
   } catch (e) {
     fail(e, 'save-settings');
     return;
@@ -730,6 +742,13 @@ async function copyInvite() {
 
 /* ---------- events ---------- */
 document.addEventListener('click', async (e) => {
+  const pick = e.target.closest('[data-pick]');
+  if (pick) {
+    const box = pick.closest('[data-emoji-pick]');
+    box.querySelector('input').value = pick.dataset.pick;
+    box.querySelectorAll('[data-pick]').forEach((b) => b.classList.toggle('on', b === pick));
+    return;
+  }
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const { action, g, d, id } = el.dataset;
@@ -773,6 +792,17 @@ document.addEventListener('click', async (e) => {
     case 'close-settings': $('settings').close(); break;
     case 'save-settings': await saveSettings(); break;
     case 'export': exportData(); break;
+    case 'make-couple':
+      if (!confirm(`Make “${ui.room.name}” your couple room? 💞 It becomes your home screen together.`)) break;
+      try { await api.setCouple(ui.room.id, true, null); } catch (err) { fail(err, 'make-couple'); break; }
+      track('couple_set', { since: false });
+      forgetSpace();
+      ui.space = await loadSpace({ id: ui.me });
+      $('settings').close();
+      ui.live?.ping();
+      await refresh();
+      toast('You two are official 💞');
+      break;
     case 'switch-room': $('settings').close(); store.del(LAST_ROOM_KEY); await showHome(); break;
     case 'google':
       el.disabled = true;
@@ -799,15 +829,20 @@ document.addEventListener('submit', async (e) => {
   button.disabled = true;
   try {
     if (form.dataset.form === 'create') {
-      const room = await api.createRoom(f.get('room').trim(), f.get('name').trim(), LEGACY_EMOJI);
-      track('wordle_room_created');
+      const kind = f.get('couple') ? 'couple' : 'duo';
+      const room = await api.createRoom(f.get('room').trim(), f.get('name').trim(), f.get('emoji'), kind);
+      track('wordle_room_created', { kind });
+      forgetSpace();
+      ui.space = await loadSpace({ id: ui.me });
       await openRoom(room.id);
     } else if (form.dataset.form === 'code') {
       history.replaceState(null, '', `${location.pathname}?join=${encodeURIComponent(f.get('code').trim())}`);
       await showJoin(f.get('code').trim());
     } else if (form.dataset.form === 'join') {
-      const roomId = await api.joinRoom(form.dataset.code, f.get('name').trim(), LEGACY_EMOJI);
+      const roomId = await api.joinRoom(form.dataset.code, f.get('name').trim(), f.get('emoji'));
       track('wordle_room_joined');
+      forgetSpace();
+      ui.space = await loadSpace({ id: ui.me });
       if (await openRoom(roomId)) ui.live?.ping();
     }
   } catch (err) {
@@ -876,13 +911,24 @@ async function boot() {
     showGate(`<div class="card center"><h2>Couldn't sign you in</h2><p class="muted">${esc(errMsg(e))}</p></div>`);
     return;
   }
-  if (!user) { showSignIn(authError); return; }
+  const params = new URLSearchParams(location.search);
+  if (!user) {
+    // Invite links sign in here; everyone else goes through the door on the home page.
+    if (params.get('join')) showSignIn(authError);
+    else location.replace(BASE);
+    return;
+  }
   ui.me = user.id;
   ui.myName = firstName(user);
-  ui.myAvatar = avatarUrl(user);
-  const params = new URLSearchParams(location.search);
+  try {
+    ui.space = await loadSpace(user);
+  } catch (e) {
+    fail(e, 'load-space');
+  }
   if (params.get('join')) { await showJoin(params.get('join')); return; }
-  const roomId = params.get('room') || store.get(LAST_ROOM_KEY);
+  // Partner mode: Wordle simply is your couple room, no room picking.
+  const coupleRoom = ui.space?.mode === 'couple' ? ui.space.couple.room.id : null;
+  const roomId = params.get('room') || coupleRoom || store.get(LAST_ROOM_KEY);
   if (roomId && await openRoom(roomId)) return;
   await showHome();
 }

@@ -4,6 +4,7 @@
 \set B '00000000-0000-0000-0000-00000000000b'
 \set C '00000000-0000-0000-0000-00000000000c'
 insert into auth.users values (:'A'), (:'B'), (:'C');
+insert into public.site_access values (:'A');
 
 create function pg_temp.check(label text, ok boolean) returns void language plpgsql as $$
 begin raise notice '% %', case when ok then 'PASS' else 'FAIL' end, label; end $$;
@@ -19,6 +20,11 @@ end $$;
 
 set role authenticated;
 
+-- Invite-only: C has no invite and isn't on the allowlist
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('C has no access', (select not public.site_has_access()));
+select pg_temp.expect_error('C cannot start a room', format('select public.wordle_create_room(%L, %L, %L)', 'Mine', 'Eve', '😈'));
+
 -- A creates a room
 set request.jwt.claim.sub = :'A';
 select invite_code as code, id as room from public.wordle_create_room('Us', 'Aryan', '🐻') \gset
@@ -27,7 +33,7 @@ select pg_temp.check('A sees own room', (select count(*) = 1 from public.wordle_
 -- B previews and joins
 set request.jwt.claim.sub = :'B';
 select pg_temp.check('B cannot see room before joining', (select count(*) = 0 from public.wordle_rooms));
-select pg_temp.check('B preview shows Aryan', (select member_names = array['Aryan'] from public.wordle_room_preview(:'code')));
+select pg_temp.check('B preview shows Aryan', (select member_names = array['🐻 Aryan'] from public.wordle_room_preview(:'code')));
 select pg_temp.check('B join returns room', (select public.wordle_join_room(lower(:'code'), 'Bae', '🐰') = :'room'::uuid));
 select pg_temp.check('B join is idempotent', (select public.wordle_join_room(:'code', 'Bae', '🐰') = :'room'::uuid));
 select pg_temp.check('B got slot 2', (select slot = 2 from public.wordle_members where user_id = :'B'));
@@ -96,15 +102,33 @@ select pg_temp.expect_error('B cannot change the invite code', format('update pu
 
 update public.wordle_members set display_name = 'Bub' where user_id = :'B';
 select pg_temp.check('B can rename self', (select display_name = 'Bub' from public.wordle_members where user_id = :'B'));
-update public.wordle_members set avatar_url = 'https://lh3.googleusercontent.com/a/abc=s96-c' where user_id = :'B';
-select pg_temp.check('B can set a Google photo', (select avatar_url like 'https://lh3.googleusercontent.com/%' from public.wordle_members where user_id = :'B'));
-select pg_temp.expect_error('B cannot set a non-Google photo', format(
-  'update public.wordle_members set avatar_url = %L where user_id = %L', 'https://evil.example/pixel.gif', :'B'));
-select pg_temp.expect_error('lookalike Google domain is rejected', format(
-  'update public.wordle_members set avatar_url = %L where user_id = %L', 'https://googleusercontent.com.evil.example/x', :'B'));
+update public.wordle_members set emoji = '🐱' where user_id = :'B';
+select pg_temp.check('B can change emoji', (select emoji = '🐱' from public.wordle_members where user_id = :'B'));
+select pg_temp.check('B has access via the invite', (select public.site_has_access()));
+select pg_temp.expect_error('B cannot flip the room kind directly', format('update public.wordle_rooms set kind = %L', 'couple'));
 delete from public.wordle_results where user_id = :'A';
 set request.jwt.claim.sub = :'A';
 select pg_temp.check('B could not delete A''s results', (select count(*) = 2 from public.wordle_results where user_id = :'A'));
+
+-- Couples: one per person
+select pg_temp.check('a partner makes the room a couple room', (select kind = 'couple' and since = date '2025-02-14'
+  from public.wordle_set_couple(:'room', true, date '2025-02-14')));
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('A sees the couple room', (select kind = 'couple' from public.wordle_rooms where id = :'room'));
+select pg_temp.expect_error('A cannot start a second couple', format('select public.wordle_create_room(%L, %L, %L, %L)', 'Two', 'Aryan', '🐻', 'couple'));
+select invite_code as code2, id as room2 from public.wordle_create_room('Friends', 'Aryan', '🐻') \gset
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('C preview shows a duo invite', (select room_kind = 'duo' from public.wordle_room_preview(:'code2')));
+select pg_temp.check('C joins the friends room', (select public.wordle_join_room(:'code2', 'Cleo', '🦊') = :'room2'::uuid));
+select pg_temp.check('C has access after joining', (select public.site_has_access()));
+select pg_temp.expect_error('C cannot make A''s friends room a couple', format('select public.wordle_set_couple(%L, true)', :'room2'));
+select invite_code as code3 from public.wordle_create_room('Cleo+?', 'Cleo', '🦊', 'couple') \gset
+set request.jwt.claim.sub = :'A';
+select pg_temp.expect_error('A cannot join someone else''s couple room', format('select public.wordle_join_room(%L, %L, %L)', :'code3', 'Aryan', '🐻'));
+select pg_temp.expect_error('outsiders cannot change a couple', format('select public.wordle_set_couple(%L, false)', (select room_id from public.wordle_room_preview(:'code3'))));
+select pg_temp.check('A can turn the couple off', (select kind = 'duo' and since is null from public.wordle_set_couple(:'room', false)));
+select pg_temp.check('and back on', (select kind = 'couple' from public.wordle_set_couple(:'room', true)));
+select pg_temp.expect_error('in_couple is not callable by players', format('select public.wordle_in_couple(%L)', :'A'));
 
 -- Shared tables
 select pg_temp.check('counter bumps', (select public.bump_counter('wordle-duo', 'plays') = 1 and public.bump_counter('wordle-duo', 'plays') = 2));

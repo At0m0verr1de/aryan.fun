@@ -1,6 +1,7 @@
 // Site header: shows "Sign in" or the profile menu, keeps it in sync with the session,
 // and logs account lifecycle events (it's on every page, so it's the one place that sees them all).
-import { isConfigured, currentUser, onUserChange, signInWithGoogle, signOut, fullName, avatarUrl } from './supabase.js';
+import { isConfigured, currentUser, onUserChange, signInWithGoogle, signOut, fullName } from './supabase.js';
+import { loadSpace, setMode, emojiOf } from './space.js';
 import { track, reportError, setUser, flush, isNewSession } from './telemetry.js';
 
 const FRESH_MS = 5 * 60 * 1000; // created/signed-in this recently means it happened on this page load
@@ -8,7 +9,7 @@ const FRESH_MS = 5 * 60 * 1000; // created/signed-in this recently means it happ
 const root = document.querySelector('[data-account]');
 const menu = root.querySelector('[data-menu]');
 const toggle = root.querySelector('[data-auth="toggle"]');
-const avatar = root.querySelector('[data-avatar]');
+const modeRow = root.querySelector('[data-mode-row]');
 let reported = false;
 
 function render(user) {
@@ -18,9 +19,22 @@ function render(user) {
   root.querySelector('[data-name]').textContent = name;
   root.querySelector('[data-email]').textContent = user.email ?? '';
   root.querySelector('[data-initial]').textContent = name.charAt(0).toUpperCase();
-  const src = avatarUrl(user);
-  avatar.hidden = !src;
-  if (src && avatar.src !== src) avatar.src = src;
+  loadSpace(user).then(renderSpace).catch((err) => reportError(err, 'header-space'));
+}
+
+// Emoji avatar, couple wordmark, and the (hidden unless you have a partner) mode switch.
+function renderSpace(space) {
+  const me = space.couple?.me;
+  if (me) {
+    root.querySelector('[data-initial]').textContent = emojiOf(me);
+    toggle.classList.add('emoji');
+  }
+  modeRow.hidden = !space.couple;
+  modeRow.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === space.mode)));
+  const partner = space.couple?.partner;
+  if (space.mode === 'couple' && me && partner) {
+    document.querySelector('[data-wordmark]').textContent = `${me.display_name} & ${partner.display_name}`;
+  }
 }
 
 function setMenu(open) {
@@ -58,11 +72,15 @@ function logAuth(user) {
   }
 }
 
-avatar.addEventListener('error', () => { avatar.hidden = true; });
-
 root.addEventListener('click', async (e) => {
   const action = e.target.closest('[data-auth]')?.dataset.auth;
   if (action === 'toggle') setMenu(menu.hidden);
+  if (action === 'mode') {
+    const mode = e.target.closest('[data-mode]').dataset.mode;
+    track('mode_switched', { mode });
+    setMode(mode);
+    location.href = root.querySelector('[data-home-link]').href;
+  }
   if (action === 'signin' || action === 'switch') {
     try { await signInWithGoogle(); } catch (err) { reportError(err, 'header-signin'); }
   }

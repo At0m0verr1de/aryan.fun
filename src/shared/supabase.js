@@ -47,9 +47,6 @@ export function firstName(user) {
 
 export const fullName = (user) => user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '';
 
-// Google profile photo, or null when the account has none.
-export const avatarUrl = (user) => user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null;
-
 function stripAuthParams() {
   const params = new URLSearchParams(location.search);
   if (!params.has('code') && !params.has('error')) return;

@@ -16,46 +16,93 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const number = (i: number) => String(toys.length - i).padStart(2, '0');
 ---
 <Layout title="made by aryan">
-  <section class="hero">
-    <p class="eyebrow">a growing collection of tiny web toys</p>
-    <h1>Small, silly,<br /><span class="grad">playable things.</span></h1>
-    <p class="lede">Little games and experiments to play with friends. New ones show up whenever.</p>
+  <!-- One page, five views. Everyone starts at the door; the database decides who gets further. -->
+  <div class="views" data-view="checking">
 
-    <div class="cta" data-cta data-state="loading">
-      <div class="cta-out">
-        <button class="google-btn" data-cta-signin type="button"><Fragment set:html={GOOGLE} />Sign in with Google</button>
-        <span class="hint">Sign in to save scores and play with friends.</span>
+    <section class="view door">
+      <div class="lock" aria-hidden="true">🔒</div>
+      <h1>Knock knock</h1>
+      <p class="muted">This little corner of the internet is for two people. 💌<br />Sign in to see if you're one of them.</p>
+      <button class="google-btn" data-signin type="button"><Fragment set:html={GOOGLE} />Sign in with Google</button>
+    </section>
+
+    <section class="view checking" aria-live="polite">
+      <div class="hearts" aria-hidden="true"><span>💗</span><span>💗</span><span>💗</span></div>
+      <p class="muted">Checking the guest list…</p>
+    </section>
+
+    <section class="view denied">
+      <div class="lock" aria-hidden="true">💌</div>
+      <h1>Invite only, for now</h1>
+      <p class="muted">You're signed in, but this place only opens with an invite.<br />If someone sent you a link, open that link again.</p>
+      <button class="btn ghost" data-switch type="button">Use a different account</button>
+    </section>
+
+    <section class="view couple">
+      <div class="unlock" aria-hidden="true">💖</div>
+      <div class="duo-hero">
+        <div class="faces"><span data-me-emoji></span><span class="heart beat">♥</span><span data-partner-emoji></span></div>
+        <h1><span data-me-name></span> <span class="heart">♥</span> <span data-partner-name></span></h1>
+        <p class="muted" data-together></p>
+        <form class="since-form" data-since-form hidden>
+          <label>Together since <input type="date" name="since" class="field-input" required /></label>
+          <button class="btn" style="--pc:var(--heart)">Save</button>
+        </form>
       </div>
-      <p class="cta-in">Welcome back, <strong data-cta-name></strong>. Pick something to play.</p>
-    </div>
-  </section>
+      <div class="tiles">
+        {toys.map((t) => (
+          <a class="tile" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
+            <span class="tile-title">{t.title}</span>
+            <span class="tile-status" data-status={t.slug}>{t.blurb}</span>
+            <span class="tile-go">Play <Fragment set:html={ARROW(16)} /></span>
+          </a>
+        ))}
+        <div class="tile soon" style="--accent: var(--gold)">
+          <span class="tile-title">Drinks</span>
+          <span class="tile-status">Track it together, month by month. Coming next ✨</span>
+        </div>
+        <div class="tile tally" data-tally hidden>
+          <span class="tile-title">This month</span>
+          <span class="tile-status" data-tally-text></span>
+        </div>
+      </div>
+    </section>
 
-  <div class="section-head">
-    <h2>Toys</h2>
-    <span>{toys.length} so far</span>
-  </div>
+    <section class="view general">
+      <section class="hero">
+        <p class="eyebrow">a growing collection of tiny web toys</p>
+        <h1>Small, silly,<br /><span class="grad">playable things.</span></h1>
+        <p class="lede">Welcome, <strong data-first-name>friend</strong>. Little games to play with your people.</p>
+      </section>
 
-  <main class="toys">
-    {toys.map((t, i) => (
-      <a class="toy" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
-        <div class="art"><span class="num">{number(i)}</span>{isNew(t) && <span class="badge">new</span>}</div>
-        <div class="body">
-          <h3>{t.title}</h3>
-          <p>{t.blurb}</p>
-          <div class="foot">
-            <div class="tags">{t.tags?.map((tag) => <span>{tag}</span>)}</div>
-            <span class="play">Play <Fragment set:html={ARROW(16)} /></span>
+      <div class="section-head">
+        <h2>Toys</h2>
+        <span>{toys.length} so far</span>
+      </div>
+
+      <main class="toys">
+        {toys.map((t, i) => (
+          <a class="toy" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
+            <div class="art"><span class="num">{number(i)}</span>{isNew(t) && <span class="badge">new</span>}</div>
+            <div class="body">
+              <h3>{t.title}</h3>
+              <p>{t.blurb}</p>
+              <div class="foot">
+                <div class="tags">{t.tags?.map((tag) => <span>{tag}</span>)}</div>
+                <span class="play">Play <Fragment set:html={ARROW(16)} /></span>
+              </div>
+            </div>
+          </a>
+        ))}
+        <div class="toy soon">
+          <div class="body">
+            <h3>More soon</h3>
+            <p>Something is cooking.</p>
           </div>
         </div>
-      </a>
-    ))}
-    <div class="toy soon">
-      <div class="body">
-        <h3>More soon</h3>
-        <p>Something is cooking.</p>
-      </div>
-    </div>
-  </main>
+      </main>
+    </section>
+  </div>
 
   <footer class="site-foot">
     <span>made by aryan</span>
@@ -64,39 +111,139 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
 </Layout>
 
 <script>
-  import { isConfigured, onUserChange, signInWithGoogle, firstName } from '../shared/supabase.js';
-  import { reportError } from '../shared/telemetry.js';
+  import { supabase, isConfigured, currentUser, signInWithGoogle, firstName } from '../shared/supabase.js';
+  import { loadSpace, forgetSpace, emojiOf } from '../shared/space.js';
+  import { track, reportError } from '../shared/telemetry.js';
+  import { coupleHomeData } from '../toys/wordle-duo/summary.js';
 
-  const cta = document.querySelector<HTMLElement>('[data-cta]')!;
-  const button = cta.querySelector<HTMLButtonElement>('[data-cta-signin]')!;
-  button.addEventListener('click', async () => {
+  const DAY_MS = 86400000;
+  const views = document.querySelector<HTMLElement>('.views')!;
+  const show = (view: string) => { views.dataset.view = view; };
+  const set = (sel: string, text: string) => { document.querySelector(sel)!.textContent = text; };
+
+  document.querySelector('[data-signin]')!.addEventListener('click', async (e) => {
+    const button = e.currentTarget as HTMLButtonElement;
     button.disabled = true;
-    try { await signInWithGoogle(); } catch (e) { reportError(e, 'landing-signin'); button.disabled = false; }
+    try { await signInWithGoogle(); } catch (err) { reportError(err, 'door-signin'); button.disabled = false; }
   });
-  if (isConfigured) {
-    onUserChange((user) => {
-      cta.dataset.state = user ? 'in' : 'out';
-      if (user) cta.querySelector('[data-cta-name]')!.textContent = firstName(user) || 'friend';
-    });
-  } else {
-    cta.dataset.state = 'out';
+  document.querySelector('[data-switch]')!.addEventListener('click', () => {
+    signInWithGoogle().catch((err) => reportError(err, 'door-switch'));
+  });
+
+  function togetherText(since: string | null) {
+    if (!since) return '';
+    const days = Math.floor((Date.now() - Date.parse(`${since}T00:00:00`)) / DAY_MS) + 1;
+    return days > 0 ? `day ${days.toLocaleString()} together` : '';
   }
+
+  async function showCouple(space: any) {
+    const { me, partner, room } = space.couple;
+    set('[data-me-emoji]', emojiOf(me));
+    set('[data-me-name]', me.display_name);
+    set('[data-partner-emoji]', partner ? emojiOf(partner) : '💌');
+    set('[data-partner-name]', partner ? partner.display_name : 'your person');
+    set('[data-together]', partner ? togetherText(room.since) : 'Send them the invite from Wordle Duo settings to complete the pair.');
+    document.querySelector<HTMLFormElement>('[data-since-form]')!.hidden = !partner || Boolean(room.since);
+    show('couple');
+    try {
+      const data = await coupleHomeData(space, supabase);
+      set('[data-status="wordle-duo"]', data.today);
+      if (data.tally) {
+        document.querySelector<HTMLElement>('[data-tally]')!.hidden = false;
+        set('[data-tally-text]', data.tally);
+      }
+    } catch (err) {
+      reportError(err, 'couple-home');
+    }
+  }
+
+  document.querySelector('[data-since-form]')!.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget as HTMLFormElement;
+    const since = new FormData(form).get('since') as string;
+    const user = await currentUser();
+    const space: any = await loadSpace(user!);
+    const { error } = await supabase!.rpc('wordle_set_couple', { p_room: space.couple.room.id, p_couple: true, p_since: since });
+    if (error) { reportError(error, 'set-since'); return; }
+    track('couple_set', { since: true });
+    forgetSpace();
+    showCouple(await loadSpace(user!));
+  });
+
+  async function route() {
+    if (!isConfigured) { show('door'); return; }
+    let user;
+    try { user = await currentUser(); } catch (err) { reportError(err, 'door-session'); show('door'); return; }
+    if (!user) { show('door'); return; }
+    try {
+      const space: any = await loadSpace(user);
+      if (space.couple && space.mode === 'couple') { await showCouple(space); return; }
+      if (space.access) {
+        set('[data-first-name]', firstName(user) || 'friend');
+        show('general');
+        return;
+      }
+      track('access_denied');
+      show('denied');
+    } catch (err) {
+      reportError(err, 'door-route');
+      show('denied');
+    }
+  }
+
+  route();
 </script>
 
 <style>
+  .view { display: none; }
+  .views[data-view="door"] .door, .views[data-view="checking"] .checking, .views[data-view="denied"] .denied,
+  .views[data-view="couple"] .couple, .views[data-view="general"] .general { display: block; }
+
+  /* door, checking, denied */
+  .door, .checking, .denied { text-align: center; padding: 12vh 0 8vh; max-width: 520px; margin: 0 auto; }
+  .door h1, .denied h1 { margin: 10px 0 6px; font-size: clamp(2rem, 6vw, 2.8rem); }
+  .door p, .denied p { margin: 0 0 24px; font-size: 1.05rem; line-height: 1.6; }
+  .muted { color: var(--muted); }
+  .lock { font-size: 4rem; display: inline-block; animation: wiggle 2.6s ease-in-out infinite; }
+  @keyframes wiggle { 0%, 78%, 100% { transform: rotate(0); } 84% { transform: rotate(-12deg); } 90% { transform: rotate(10deg); } 95% { transform: rotate(-5deg); } }
+  .hearts { font-size: 1.8rem; display: flex; justify-content: center; gap: 10px; }
+  .hearts span { animation: hop 1.1s ease-in-out infinite; }
+  .hearts span:nth-child(2) { animation-delay: .15s; } .hearts span:nth-child(3) { animation-delay: .3s; }
+  @keyframes hop { 0%, 100% { transform: translateY(0); opacity: .5; } 40% { transform: translateY(-10px); opacity: 1; } }
+
+  /* couple home */
+  .couple { position: relative; padding-top: 24px; }
+  .unlock { position: absolute; left: 50%; top: 40px; font-size: 3rem; pointer-events: none; animation: unlock 1.1s ease-out forwards; }
+  @keyframes unlock { 0% { transform: translateX(-50%) scale(.4); opacity: 0; } 35% { transform: translateX(-50%) scale(1.25); opacity: 1; } 100% { transform: translateX(-50%) translateY(-60px) scale(.9); opacity: 0; } }
+  .duo-hero { text-align: center; margin-bottom: 30px; animation: rise .7s .25s both cubic-bezier(.2, 1.2, .4, 1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+  .faces { font-size: clamp(3rem, 10vw, 4.4rem); display: flex; justify-content: center; align-items: center; gap: 14px; line-height: 1; }
+  .faces .heart { font-size: .5em; }
+  .duo-hero h1 { margin: 12px 0 4px; font-size: clamp(1.8rem, 5vw, 2.5rem); }
+  .duo-hero h1 .heart { font-size: .8em; }
+  .duo-hero p { margin: 0; }
+  .since-form { margin: 14px auto 0; display: flex; gap: 8px; justify-content: center; align-items: flex-end; flex-wrap: wrap; }
+  .since-form label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; font-weight: 700; color: var(--muted); text-align: left; }
+  .since-form .field-input { width: auto; color-scheme: dark; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .tile { display: flex; flex-direction: column; gap: 6px; padding: 18px 18px 16px; border-radius: var(--radius); color: inherit; text-decoration: none; min-height: 150px;
+    background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface) 70%);
+    outline: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); transition: transform .2s, box-shadow .2s; }
+  a.tile:hover { transform: translateY(-3px); box-shadow: 0 14px 36px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .tile-title { font-family: Fredoka, sans-serif; font-weight: 700; font-size: 1.3rem; }
+  .tile-status { color: var(--muted); font-size: .95rem; }
+  .tile-go { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: var(--accent); }
+  .tile.soon { outline-style: dashed; background: transparent; }
+  .tile.tally { --accent: var(--heart); }
+
+  /* general */
   .hero { padding: 56px 0 44px; max-width: 720px; }
   .eyebrow { margin: 0 0 14px; color: var(--muted); font-weight: 700; font-size: .8rem; letter-spacing: 1.6px; text-transform: uppercase; }
   .hero h1 { margin: 0; font-size: clamp(2.5rem, 7.5vw, 4.4rem); line-height: 1.02; font-weight: 700; letter-spacing: -.5px; }
   .grad { background: linear-gradient(100deg, var(--pink), var(--lilac) 45%, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .lede { margin: 18px 0 0; color: var(--muted); font-size: 1.12rem; max-width: 520px; }
-
-  .cta { margin-top: 28px; min-height: 48px; }
-  .cta-out, .cta-in { display: none; }
-  .cta[data-state="out"] .cta-out { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .cta[data-state="in"] .cta-in { display: block; }
-  .hint { color: var(--faint); font-size: .9rem; }
-  .cta-in { margin: 0; color: var(--muted); font-size: 1.05rem; }
-  .cta-in strong { color: var(--text); }
+  .lede strong { color: var(--text); }
 
   .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 16px;
     padding-top: 22px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
@@ -122,8 +269,8 @@ const number = (i: number) => String(toys.length - i).padStart(2, '0');
   .tags { display: flex; gap: 6px; flex-wrap: wrap; }
   .tags span { font-size: .75rem; font-weight: 700; color: var(--muted); padding: 2px 9px; border-radius: 999px; background: var(--surface-2); }
   .play { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: var(--accent); white-space: nowrap; }
-  .play :global(svg) { transition: transform .2s; }
-  .toy:hover .play :global(svg) { transform: translateX(3px); }
+  .play :global(svg), .tile-go :global(svg) { transition: transform .2s; }
+  .toy:hover .play :global(svg), a.tile:hover .tile-go :global(svg) { transform: translateX(3px); }
   .toy.soon { background: transparent; outline: 1px dashed var(--line); min-height: 160px; justify-content: center; }
   .toy.soon .body { flex: 0; }
   .toy.soon:hover { transform: none; box-shadow: none; outline-color: var(--line); }

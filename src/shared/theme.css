@@ -15,6 +15,22 @@ body {
     radial-gradient(800px 500px at 100% 0%, rgba(124, 196, 255, .12), transparent 60%),
     var(--bg);
 }
+/* Partner mode: warmer, blush-tinted version of the same tokens. */
+:root[data-mode="couple"] {
+  --bg: #1a1016; --surface: #27171f; --surface-2: #34202b; --line: #4b2d3d;
+  --text: #fdf0f5; --muted: #caa5b7; --faint: #8b6779; --lilac: #ff9ec7; --heart: #ff6b9d;
+}
+:root[data-mode="couple"] body {
+  background:
+    radial-gradient(900px 520px at 15% -10%, rgba(255, 107, 157, .2), transparent 60%),
+    radial-gradient(700px 500px at 100% 10%, rgba(255, 143, 196, .12), transparent 60%),
+    var(--bg);
+}
+:root { --heart: #ff6b9d; }
+.heart { color: var(--heart); display: inline-block; }
+.heart.beat { animation: heartbeat 1.6s ease-in-out infinite; transform-origin: center; }
+@keyframes heartbeat { 0%, 60%, 100% { transform: scale(1); } 10% { transform: scale(1.18); } 20% { transform: scale(1); } 30% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .heart.beat { animation: none; } }
 button, input, textarea { font: inherit; color: inherit; }
 a { color: var(--lilac); }
 h1, h2, h3, .display { font-family: Fredoka, Nunito, sans-serif; letter-spacing: .2px; }

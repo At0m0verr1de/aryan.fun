@@ -7,10 +7,14 @@ const unwrap = ({ data, error }) => {
 };
 
 export const listMyRooms = async () =>
-  unwrap(await supabase.from('wordle_rooms').select('id, name, invite_code, created_by, created_at').order('created_at'));
+  unwrap(await supabase.from('wordle_rooms').select('id, name, kind, invite_code, created_by, created_at').order('created_at'));
 
-export const createRoom = async (name, displayName, emoji) =>
-  unwrap(await supabase.rpc('wordle_create_room', { p_name: name, p_display_name: displayName, p_emoji: emoji }));
+export const createRoom = async (name, displayName, emoji, kind = 'duo') =>
+  unwrap(await supabase.rpc('wordle_create_room', { p_name: name, p_display_name: displayName, p_emoji: emoji, p_kind: kind }));
+
+// Make a duo room your couple room (or undo it) and set the together-since date.
+export const setCouple = async (roomId, couple, since) =>
+  unwrap(await supabase.rpc('wordle_set_couple', { p_room: roomId, p_couple: couple, p_since: since }));
 
 export const previewRoom = async (code) =>
   unwrap(await supabase.rpc('wordle_room_preview', { p_code: code }))?.[0] ?? null;
@@ -21,8 +25,8 @@ export const joinRoom = async (code, displayName, emoji) =>
 // Everything a room view needs. Rows the no-spoiler rule hides simply don't come back.
 export async function loadRoom(roomId, fromPuzzle) {
   const [room, members, results, submissions] = await Promise.all([
-    supabase.from('wordle_rooms').select('id, name, invite_code, created_by').eq('id', roomId).maybeSingle(),
-    supabase.from('wordle_members').select('user_id, slot, display_name, avatar_url').eq('room_id', roomId).order('slot'),
+    supabase.from('wordle_rooms').select('id, name, kind, since, max_members, invite_code, created_by').eq('id', roomId).maybeSingle(),
+    supabase.from('wordle_members').select('user_id, slot, display_name, emoji').eq('room_id', roomId).order('slot'),
     supabase.from('wordle_results').select('user_id, puzzle_no, solved, guesses, grid, source, words, answer, verified')
       .eq('room_id', roomId).gte('puzzle_no', fromPuzzle),
     supabase.rpc('wordle_submissions', { p_room: roomId, p_from_puzzle: fromPuzzle }),
