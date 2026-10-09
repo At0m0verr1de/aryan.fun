@@ -1,0 +1,6 @@
+// Cloudflare deploy config: the site is plain static files from `npm run build`, no server code.
+{
+  "name": "madebyaryan",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./dist" }
+}
