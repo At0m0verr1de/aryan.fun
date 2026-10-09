@@ -6,10 +6,14 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "test": "node --test \"src/**/*.test.js\""
+    "test": "node --test \"src/**/*.test.js\" \"worker/**/*.test.js\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
     "astro": "^7.3.8"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.0.10",
+    "wrangler": "^4.149.0"
   }
 }

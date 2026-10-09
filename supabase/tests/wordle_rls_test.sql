@@ -27,7 +27,7 @@ select pg_temp.check('A sees own room', (select count(*) = 1 from public.wordle_
 -- B previews and joins
 set request.jwt.claim.sub = :'B';
 select pg_temp.check('B cannot see room before joining', (select count(*) = 0 from public.wordle_rooms));
-select pg_temp.check('B preview shows Aryan', (select member_names = array['🐻 Aryan'] from public.wordle_room_preview(:'code')));
+select pg_temp.check('B preview shows Aryan', (select member_names = array['Aryan'] from public.wordle_room_preview(:'code')));
 select pg_temp.check('B join returns room', (select public.wordle_join_room(lower(:'code'), 'Bae', '🐰') = :'room'::uuid));
 select pg_temp.check('B join is idempotent', (select public.wordle_join_room(:'code', 'Bae', '🐰') = :'room'::uuid));
 select pg_temp.check('B got slot 2', (select slot = 2 from public.wordle_members where user_id = :'B'));
@@ -71,6 +71,22 @@ select pg_temp.expect_error('solved without guesses is rejected', format(
 select pg_temp.expect_error('bad grid is rejected', format(
   'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, source) values (%L, %L, public.wordle_today() - 1, true, 1, %L, %L)',
   :'room', :'B', '{GGGGX}', 'manual'));
+insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, answer, verified, source)
+  values (:'room', :'B', public.wordle_today() - 2, true, 2, array['BYBBB', 'GGGGG'], array['CRANE', 'STREW'], 'STREW', true, 'screenshot');
+select pg_temp.check('words and answer save', (select words = array['CRANE', 'STREW'] and verified
+  from public.wordle_results where user_id = :'B' and puzzle_no = public.wordle_today() - 2));
+select pg_temp.expect_error('word count must match rows', format(
+  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, answer, source) values (%L, %L, public.wordle_today() - 3, true, 2, %L, %L, %L, %L)',
+  :'room', :'B', '{BYBBB,GGGGG}', '{STREW}', 'STREW', 'screenshot'));
+select pg_temp.expect_error('lowercase or short words are rejected', format(
+  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, source) values (%L, %L, public.wordle_today() - 3, true, 1, %L, %L, %L)',
+  :'room', :'B', '{GGGGG}', '{stre}', 'screenshot'));
+select pg_temp.expect_error('solved board must end on the answer', format(
+  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, answer, source) values (%L, %L, public.wordle_today() - 3, true, 1, %L, %L, %L, %L)',
+  :'room', :'B', '{GGGGG}', '{CRANE}', 'STREW', 'screenshot'));
+select pg_temp.expect_error('verified needs an answer', format(
+  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, verified, source) values (%L, %L, public.wordle_today() - 3, true, 1, %L, true, %L)',
+  :'room', :'B', '{GGGGG}', 'screenshot'));
 select pg_temp.expect_error('B cannot change own slot', 'update public.wordle_members set slot = 5 where user_id = auth.uid()');
 select pg_temp.expect_error('B cannot move self to another room', format(
   'update public.wordle_members set room_id = gen_random_uuid() where user_id = %L', :'B'));
@@ -80,6 +96,12 @@ select pg_temp.expect_error('B cannot change the invite code', format('update pu
 
 update public.wordle_members set display_name = 'Bub' where user_id = :'B';
 select pg_temp.check('B can rename self', (select display_name = 'Bub' from public.wordle_members where user_id = :'B'));
+update public.wordle_members set avatar_url = 'https://lh3.googleusercontent.com/a/abc=s96-c' where user_id = :'B';
+select pg_temp.check('B can set a Google photo', (select avatar_url like 'https://lh3.googleusercontent.com/%' from public.wordle_members where user_id = :'B'));
+select pg_temp.expect_error('B cannot set a non-Google photo', format(
+  'update public.wordle_members set avatar_url = %L where user_id = %L', 'https://evil.example/pixel.gif', :'B'));
+select pg_temp.expect_error('lookalike Google domain is rejected', format(
+  'update public.wordle_members set avatar_url = %L where user_id = %L', 'https://googleusercontent.com.evil.example/x', :'B'));
 delete from public.wordle_results where user_id = :'A';
 set request.jwt.claim.sub = :'A';
 select pg_temp.check('B could not delete A''s results', (select count(*) = 2 from public.wordle_results where user_id = :'A'));

@@ -28,3 +28,9 @@ Never point it at work registries, work GitHub orgs, or work services.
 - Add a case to `supabase/tests/wordle_rls_test.sql` for every new policy.
 - `.env.production` is committed and holds only browser-safe values; secrets never go there.
 - Commits here must stay unsigned and use the At0m0verr1de identity (repo-local git config overrides the devpod's signing and hooks).
+- Telemetry: `track()` / `reportError()` from `src/shared/telemetry.js` → `/api/events` → `worker/index.js` → Workers Logs (free: 200k events/day, ~3-day retention). New event names must be added to `EVENTS` in `worker/index.js` or they are dropped. Never log names, emails, or player-typed text.
+- `worker/index.js` only runs for paths with no static file; static pages never invoke it. Invocation logs are off to save log quota.
+- Wordle Duo screenshot reading (all in the browser): `parse.js` (tile colours + boxes) → `/api/wordle/<date>` (worker proxies NYT's answer, edge-cached; dates after tomorrow refused) → `ocr.js` letter scores → `solve.js` `verifyBoard` (blocks other days' boards) + `decodeBoard` (words that fit the colours) → player confirms words. Colours + answer do most of the work; OCR only ranks candidate words. `words.js` (~74 KB) must stay a dynamic import. OCR accuracy is guarded by `ocr.test.js` (draws boards with @napi-rs/canvas).
+- Words are never logged in telemetry (they'd spoil the day); only counts/ratios.
+- Design iteration: preview on the devpod first (`scripts/preview-devpod.sh`); push a non-main branch for a Cloudflare preview URL when Google sign-in must work; merge to `main` only when final.
+

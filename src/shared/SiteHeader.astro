@@ -1,0 +1,80 @@
+---
+import { GOOGLE } from './icons.js';
+
+interface Props {
+  crumb?: string;
+}
+const { crumb } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+<header class="site-head">
+  <div class="site-head-inner">
+    <a class="wordmark" href={base}><span class="dot"></span>made by aryan</a>
+    {crumb && <span class="crumb"><span class="sep">/</span>{crumb}</span>}
+
+    <div class="account" data-account data-state="loading">
+      <button class="signin" data-auth="signin" type="button"><Fragment set:html={GOOGLE} />Sign in</button>
+
+      <div class="profile">
+        <button class="avatar-btn" data-auth="toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">
+          <img data-avatar alt="" referrerpolicy="no-referrer" hidden />
+          <span data-initial></span>
+        </button>
+        <div class="menu" role="menu" data-menu hidden>
+          <div class="menu-id"><strong data-name></strong><span data-email></span></div>
+          <a role="menuitem" href={base}>All toys</a>
+          <button role="menuitem" type="button" data-auth="switch">Switch account</button>
+          <hr />
+          <a role="menuitem" href={`${base}privacy/`}>Privacy</a>
+          <a role="menuitem" href={`${base}terms/`}>Terms</a>
+          <hr />
+          <button role="menuitem" type="button" data-auth="signout" class="danger">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<script>
+  import './header.js';
+</script>
+
+<style is:global>
+  .site-head {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  }
+  .site-head-inner { max-width: 980px; margin: 0 auto; padding: 0 16px; height: 60px; display: flex; align-items: center; gap: 10px; }
+  .wordmark { display: inline-flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none;
+    font-family: Fredoka, sans-serif; font-weight: 600; font-size: 1.12rem; letter-spacing: .2px; white-space: nowrap; }
+  .wordmark .dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--pink), var(--blue)); }
+  .crumb { color: var(--muted); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crumb .sep { color: var(--faint); margin: 0 8px 0 2px; }
+
+  .account { margin-left: auto; position: relative; display: flex; align-items: center; min-width: 36px; min-height: 36px; justify-content: flex-end; }
+  .account .signin, .account .profile { display: none; }
+  .account[data-state="out"] .signin { display: inline-flex; }
+  .account[data-state="in"] .profile { display: block; }
+  .signin { align-items: center; gap: 8px; padding: 7px 14px 7px 11px; border-radius: 999px; cursor: pointer;
+    background: var(--text); color: #1a1424; border: none; font-weight: 800; font-size: .92rem; }
+  .signin:hover { background: #fff; }
+
+  .avatar-btn { width: 36px; height: 36px; border-radius: 50%; padding: 0; border: 2px solid transparent; cursor: pointer; overflow: hidden;
+    background: linear-gradient(135deg, var(--pink), var(--blue)); color: #1a1424; font-weight: 800; display: grid; place-items: center; transition: border-color .15s; }
+  .avatar-btn:hover, .avatar-btn[aria-expanded="true"] { border-color: var(--text); }
+  .avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 230px; padding: 6px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line); box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+  .menu-id { padding: 10px 10px 8px; display: flex; flex-direction: column; min-width: 0; }
+  .menu-id strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .menu-id span { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .menu a, .menu button { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 9px; border: none; background: none;
+    color: var(--text); text-decoration: none; font-weight: 600; font-size: .94rem; cursor: pointer; }
+  .menu a:hover, .menu button:hover { background: var(--surface-2); }
+  .menu .danger { color: var(--danger); }
+  .menu hr { border: none; border-top: 1px solid var(--line); margin: 6px 4px; }
+  @media (max-width: 480px) { .crumb { display: none; } }
+</style>

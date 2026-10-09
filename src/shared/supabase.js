@@ -28,6 +28,13 @@ export async function signInWithGoogle() {
   if (error) throw error;
 }
 
+// Calls back with the signed-in user (or null) now and on every sign-in, sign-out, or token refresh.
+export function onUserChange(callback) {
+  if (!supabase) { callback(null); return () => {}; }
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => callback(session?.user ?? null));
+  return () => data.subscription.unsubscribe();
+}
+
 export async function signOut() {
   await supabase.auth.signOut();
 }
@@ -37,6 +44,11 @@ export function firstName(user) {
   const full = user?.user_metadata?.full_name || user?.user_metadata?.name || '';
   return full.split(' ')[0].slice(0, 24);
 }
+
+export const fullName = (user) => user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '';
+
+// Google profile photo, or null when the account has none.
+export const avatarUrl = (user) => user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null;
 
 function stripAuthParams() {
   const params = new URLSearchParams(location.search);

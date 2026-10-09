@@ -22,8 +22,8 @@ export const joinRoom = async (code, displayName, emoji) =>
 export async function loadRoom(roomId, fromPuzzle) {
   const [room, members, results, submissions] = await Promise.all([
     supabase.from('wordle_rooms').select('id, name, invite_code, created_by').eq('id', roomId).maybeSingle(),
-    supabase.from('wordle_members').select('user_id, slot, display_name, emoji').eq('room_id', roomId).order('slot'),
-    supabase.from('wordle_results').select('user_id, puzzle_no, solved, guesses, grid, source')
+    supabase.from('wordle_members').select('user_id, slot, display_name, avatar_url').eq('room_id', roomId).order('slot'),
+    supabase.from('wordle_results').select('user_id, puzzle_no, solved, guesses, grid, source, words, answer, verified')
       .eq('room_id', roomId).gte('puzzle_no', fromPuzzle),
     supabase.rpc('wordle_submissions', { p_room: roomId, p_from_puzzle: fromPuzzle }),
   ]);
@@ -34,6 +34,7 @@ export const submitResult = async (roomId, userId, puzzle, r) =>
   unwrap(await supabase.from('wordle_results').insert({
     room_id: roomId, user_id: userId, puzzle_no: puzzle,
     solved: r.solved, guesses: r.solved ? r.guesses : null, grid: r.grid || [], source: r.source,
+    words: r.words ?? null, answer: r.answer ?? null, verified: Boolean(r.verified),
   }));
 
 export const deleteResult = async (roomId, userId, puzzle) =>

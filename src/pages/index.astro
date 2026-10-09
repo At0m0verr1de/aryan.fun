@@ -1,6 +1,7 @@
 ---
 import Layout from '../shared/Layout.astro';
 import type { ToyMeta } from '../shared/toy';
+import { GOOGLE, ARROW } from '../shared/icons.js';
 
 const NEW_FOR_DAYS = 14;
 const DAY_MS = 86400000;
@@ -12,54 +13,124 @@ const toys = Object.values(modules)
   .sort((a, b) => b.added.localeCompare(a.added));
 const isNew = (t: ToyMeta) => Date.now() - Date.parse(t.added) < NEW_FOR_DAYS * DAY_MS;
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const number = (i: number) => String(toys.length - i).padStart(2, '0');
 ---
-<Layout title="made by aryan" emoji="✨">
-  <header class="hero">
-    <h1>made by aryan <span class="spark">✨</span></h1>
-    <p>small, silly, playable things. new ones show up whenever.</p>
-  </header>
+<Layout title="made by aryan">
+  <section class="hero">
+    <p class="eyebrow">a growing collection of tiny web toys</p>
+    <h1>Small, silly,<br /><span class="grad">playable things.</span></h1>
+    <p class="lede">Little games and experiments to play with friends. New ones show up whenever.</p>
+
+    <div class="cta" data-cta data-state="loading">
+      <div class="cta-out">
+        <button class="google-btn" data-cta-signin type="button"><Fragment set:html={GOOGLE} />Sign in with Google</button>
+        <span class="hint">Sign in to save scores and play with friends.</span>
+      </div>
+      <p class="cta-in">Welcome back, <strong data-cta-name></strong>. Pick something to play.</p>
+    </div>
+  </section>
+
+  <div class="section-head">
+    <h2>Toys</h2>
+    <span>{toys.length} so far</span>
+  </div>
 
   <main class="toys">
-    {toys.map((t) => (
-      <a class="toy" href={`${base}${t.slug}/`}>
-        {isNew(t) && <span class="badge">new</span>}
-        <span class="emoji">{t.emoji}</span>
-        <span class="title">{t.title}</span>
-        <span class="blurb">{t.blurb}</span>
+    {toys.map((t, i) => (
+      <a class="toy" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
+        <div class="art"><span class="num">{number(i)}</span>{isNew(t) && <span class="badge">new</span>}</div>
+        <div class="body">
+          <h3>{t.title}</h3>
+          <p>{t.blurb}</p>
+          <div class="foot">
+            <div class="tags">{t.tags?.map((tag) => <span>{tag}</span>)}</div>
+            <span class="play">Play <Fragment set:html={ARROW(16)} /></span>
+          </div>
+        </div>
       </a>
     ))}
     <div class="toy soon">
-      <span class="emoji">🧪</span>
-      <span class="title">more soon</span>
-      <span class="blurb">something is cooking</span>
+      <div class="body">
+        <h3>More soon</h3>
+        <p>Something is cooking.</p>
+      </div>
     </div>
   </main>
 
-  <footer>{toys.length} toy{toys.length === 1 ? '' : 's'} so far · <a href={`${base}privacy/`}>privacy</a> · <a href={`${base}terms/`}>terms</a></footer>
+  <footer class="site-foot">
+    <span>made by aryan</span>
+    <nav><a href={`${base}privacy/`}>Privacy</a><a href={`${base}terms/`}>Terms</a></nav>
+  </footer>
 </Layout>
 
+<script>
+  import { isConfigured, onUserChange, signInWithGoogle, firstName } from '../shared/supabase.js';
+  import { reportError } from '../shared/telemetry.js';
+
+  const cta = document.querySelector<HTMLElement>('[data-cta]')!;
+  const button = cta.querySelector<HTMLButtonElement>('[data-cta-signin]')!;
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try { await signInWithGoogle(); } catch (e) { reportError(e, 'landing-signin'); button.disabled = false; }
+  });
+  if (isConfigured) {
+    onUserChange((user) => {
+      cta.dataset.state = user ? 'in' : 'out';
+      if (user) cta.querySelector('[data-cta-name]')!.textContent = firstName(user) || 'friend';
+    });
+  } else {
+    cta.dataset.state = 'out';
+  }
+</script>
+
 <style>
-  .hero { text-align: center; margin: 24px 0 34px; }
-  .hero h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.2rem); }
-  .hero p { margin: 6px 0 0; color: var(--muted); }
-  .spark { display: inline-block; animation: twinkle 2.4s ease-in-out infinite; }
-  @keyframes twinkle { 50% { transform: rotate(18deg) scale(1.15); } }
-  .toys { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-  .toy {
-    position: relative; display: flex; flex-direction: column; gap: 6px; padding: 20px 18px; min-height: 170px;
-    border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line);
-    color: inherit; text-decoration: none; transition: transform .15s, border-color .15s;
-  }
-  .toy:hover { transform: translateY(-3px) rotate(-.6deg); border-color: var(--pink); }
-  .toy .emoji { font-size: 2.4rem; }
-  .toy .title { font-family: Fredoka, sans-serif; font-weight: 600; font-size: 1.2rem; }
-  .toy .blurb { color: var(--muted); font-size: .92rem; }
-  .toy.soon { border-style: dashed; opacity: .6; }
-  .toy.soon:hover { transform: none; border-color: var(--line); }
-  .badge {
-    position: absolute; top: 12px; right: 12px; background: var(--gold); color: #1a1424;
-    font-weight: 800; font-size: .72rem; padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
-  }
-  footer { margin-top: 40px; text-align: center; color: var(--faint); font-size: .85rem; }
-  footer a { color: inherit; }
+  .hero { padding: 56px 0 44px; max-width: 720px; }
+  .eyebrow { margin: 0 0 14px; color: var(--muted); font-weight: 700; font-size: .8rem; letter-spacing: 1.6px; text-transform: uppercase; }
+  .hero h1 { margin: 0; font-size: clamp(2.5rem, 7.5vw, 4.4rem); line-height: 1.02; font-weight: 700; letter-spacing: -.5px; }
+  .grad { background: linear-gradient(100deg, var(--pink), var(--lilac) 45%, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { margin: 18px 0 0; color: var(--muted); font-size: 1.12rem; max-width: 520px; }
+
+  .cta { margin-top: 28px; min-height: 48px; }
+  .cta-out, .cta-in { display: none; }
+  .cta[data-state="out"] .cta-out { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .cta[data-state="in"] .cta-in { display: block; }
+  .hint { color: var(--faint); font-size: .9rem; }
+  .cta-in { margin: 0; color: var(--muted); font-size: 1.05rem; }
+  .cta-in strong { color: var(--text); }
+
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 16px;
+    padding-top: 22px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .section-head h2 { margin: 0; font-size: 1.3rem; }
+  .section-head span { color: var(--faint); font-size: .9rem; font-weight: 700; }
+
+  .toys { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+  .toy { display: flex; flex-direction: column; border-radius: var(--radius); overflow: hidden; color: inherit; text-decoration: none;
+    background: var(--surface); outline: 1px solid color-mix(in srgb, var(--line) 70%, transparent); transition: transform .2s, outline-color .2s, box-shadow .2s; }
+  .toy:hover { transform: translateY(-4px); outline-color: var(--accent); box-shadow: 0 16px 40px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .art { position: relative; height: 130px; display: flex; align-items: flex-end; padding: 14px 16px;
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--accent) 45%, transparent) 1px, transparent 0) 0 0 / 14px 14px,
+      radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 40%, transparent), transparent 70%),
+      var(--surface-2); }
+  .num { font-family: Fredoka, sans-serif; font-size: 3rem; font-weight: 700; line-height: 1; color: var(--accent); opacity: .9; }
+  .badge { position: absolute; top: 12px; right: 12px; background: var(--gold); color: #1a1424;
+    font-weight: 800; font-size: .7rem; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .6px; }
+  .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .body h3 { margin: 0; font-size: 1.25rem; }
+  .body p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .foot { margin-top: auto; padding-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tags span { font-size: .75rem; font-weight: 700; color: var(--muted); padding: 2px 9px; border-radius: 999px; background: var(--surface-2); }
+  .play { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+  .play :global(svg) { transition: transform .2s; }
+  .toy:hover .play :global(svg) { transform: translateX(3px); }
+  .toy.soon { background: transparent; outline: 1px dashed var(--line); min-height: 160px; justify-content: center; }
+  .toy.soon .body { flex: 0; }
+  .toy.soon:hover { transform: none; box-shadow: none; outline-color: var(--line); }
+
+  .site-foot { margin-top: 56px; padding-top: 20px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); color: var(--faint); font-size: .88rem; }
+  .site-foot nav { display: flex; gap: 18px; }
+  .site-foot a { color: var(--muted); text-decoration: none; }
+  .site-foot a:hover { color: var(--text); }
 </style>

@@ -68,7 +68,7 @@ function findBlobs(cls, w, h) {
     }
     const bw = maxX - minX + 1;
     const bh = maxY - minY + 1;
-    blobs.push({ k, w: bw, h: bh, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, fill: count / (bw * bh) });
+    blobs.push({ k, x: minX, y: minY, w: bw, h: bh, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, fill: count / (bw * bh) });
   }
   return blobs;
 }
@@ -161,8 +161,12 @@ export function parsePixels(data, w, h) {
   if (!board.length) {
     return { ok: false, note: "Couldn't line up the tiles into rows. Try a tighter screenshot." };
   }
-  const grid = board.slice(0, 6).map((r) => r.tiles.map((t) => LETTERS[t.k]).join(''));
-  return summarise(grid, 'screenshot');
+  const rows = board.slice(0, 6);
+  const grid = rows.map((r) => r.tiles.map((t) => LETTERS[t.k]).join(''));
+  const result = summarise(grid, 'screenshot');
+  // Tile rectangles (same shape as grid) so letters can be read out of them.
+  result.boxes = rows.slice(0, result.grid.length).map((r) => r.tiles.map(({ x, y, w: tw, h: th }) => ({ x, y, w: tw, h: th })));
+  return result;
 }
 
 const EMOJI = { '🟩': 'G', '🟧': 'G', '🟨': 'Y', '🟦': 'Y', '⬛': 'B', '⬜': 'B' };

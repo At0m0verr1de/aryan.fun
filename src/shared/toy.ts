@@ -2,7 +2,7 @@
 export interface ToyMeta {
   slug: string;        // must match the route: src/pages/<slug>.astro
   title: string;
-  emoji: string;
+  accent: 'pink' | 'blue' | 'gold' | 'lilac' | 'mint'; // card colour, from theme.css
   blurb: string;       // one line on the homepage card
   added: string;       // YYYY-MM-DD, drives ordering and the "new" badge
   tags?: string[];

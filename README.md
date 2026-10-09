@@ -10,7 +10,7 @@ Every toy is a folder; the homepage builds itself from those folders.
 ```bash
 npm install          # .npmrc pins the public npm registry
 npm run dev          # http://localhost:4321
-npm test             # unit tests (parser, scoring)
+npm test             # unit tests (parser, word reading, scoring, worker)
 supabase/tests/run.sh  # database security tests (needs a Postgres container, see below)
 ```
 
@@ -38,11 +38,17 @@ supabase/tests/run.sh
 4. No environment variables needed; the public Supabase values come from `.env.production`.
 5. Every push to `main` deploys; other branches get preview URLs.
 
+## Logs
+
+Browser events (sign-ups, sign-ins, errors, toy actions) go to `/api/events`, a tiny Worker that writes them to
+**Cloudflare → Workers & Pages → madebyaryan → Observability**. Filter by `event` (e.g. `account_created`, `error`)
+or `user`. Free tier: 200k events/day; the client batches, dedupes errors, and caps events per page.
+
 ## Adding a toy
 
-1. `src/toys/<slug>/meta.ts` exporting `meta: ToyMeta` (see `src/shared/toy.ts`).
-2. `src/pages/<slug>.astro` using `Layout` from `src/shared/Layout.astro` with `back`.
-3. Toy code lives next to `meta.ts`. Shared bits: `src/shared/supabase.js` (`supabase`, `currentUser`, `signInWithGoogle`, `signOut`), `theme.css`.
+1. `src/toys/<slug>/meta.ts` exporting `meta: ToyMeta` (see `src/shared/toy.ts`; `accent` picks the card colour).
+2. `src/pages/<slug>.astro` using `Layout` from `src/shared/Layout.astro` with `crumb={meta.title}`.
+3. Toy code lives next to `meta.ts`. Shared bits: `src/shared/supabase.js` (`supabase`, `currentUser`, `onUserChange`, `signInWithGoogle`), `src/shared/telemetry.js` (`track`, `reportError`; add new event names to `worker/index.js`), `src/shared/icons.js`, `theme.css`. The site header (sign-in + profile menu) comes with `Layout`.
 4. Need data?
    - Scores/leaderboards: insert into `public.scores` with `toy = '<slug>'`.
    - Counters (plays, likes): `supabase.rpc('bump_counter', { p_toy, p_key })`.
@@ -54,4 +60,4 @@ The homepage picks the toy up automatically. Set `hidden: true` in `meta` while 
 
 | Toy | What |
 |---|---|
-| [Wordle Duo](src/toys/wordle-duo) | Private rooms for two. Upload Wordle screenshots (read in the browser), no-spoiler rule enforced by the database, live updates. |
+| [Wordle Duo](src/toys/wordle-duo) | Private rooms for two. Upload Wordle screenshots (read in the browser, checked against that day's answer, guessed words read and revealed once you both play), no-spoiler rule enforced by the database, live updates. |
