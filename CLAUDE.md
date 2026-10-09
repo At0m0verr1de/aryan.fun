@@ -1,6 +1,6 @@
 # CLAUDE.md — made by aryan
 
-Personal project on personal infra only: public npm (`.npmrc`), personal GitHub, Cloudflare Pages, Supabase.
+Personal project on personal infra only: public npm (`.npmrc`), personal GitHub (At0m0verr1de), Cloudflare Workers static assets, Supabase.
 Never point it at work registries, work GitHub orgs, or work services.
 
 ## Build & Test
@@ -26,3 +26,5 @@ Never point it at work registries, work GitHub orgs, or work services.
 - Every player signs in with Google (`src/shared/supabase.js`); anonymous sign-ins stay off. The anon key is public; the service_role key never enters this repo.
 - OAuth returns to `location.href`, so every deploy/preview origin must be listed in Supabase → Authentication → URL Configuration → Redirect URLs.
 - Add a case to `supabase/tests/wordle_rls_test.sql` for every new policy.
+- `.env.production` is committed and holds only browser-safe values; secrets never go there.
+- Commits here must stay unsigned and use the At0m0verr1de identity (repo-local git config overrides the devpod's signing and hooks).

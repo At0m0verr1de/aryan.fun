@@ -1,6 +1,9 @@
-// Cloudflare deploy config: the site is plain static files from `npm run build`, no server code.
+// Cloudflare Workers deploy config: the site is plain static files from `npm run build`, no server code.
+// Live at https://madebyaryan.aryanbakshi2021.workers.dev; each upload also gets a preview URL.
 {
   "name": "madebyaryan",
   "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": true,
   "assets": { "directory": "./dist" }
 }
