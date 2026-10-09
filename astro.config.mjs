@@ -1,7 +1,7 @@
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  site: 'https://madebyaryan.aryanbakshi2021.workers.dev',
+  site: 'https://rups.fun',
   output: 'static',
   trailingSlash: 'ignore',
 });

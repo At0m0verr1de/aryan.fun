@@ -1,12 +1,17 @@
 // Cloudflare Workers deploy config. Static files from `npm run build` are served first;
 // worker/index.js only handles /api/events (telemetry → Workers Logs) and unmatched paths.
-// Live at https://madebyaryan.aryanbakshi2021.workers.dev; each upload also gets a preview URL.
+// Live at https://rups.fun; each upload also gets a preview URL. The old workers.dev address and www
+// stay up only so src/shared/Layout.astro can send visitors on to rups.fun.
 {
   "name": "madebyaryan",
   "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "preview_urls": true,
+  "routes": [
+    { "pattern": "rups.fun", "custom_domain": true },
+    { "pattern": "www.rups.fun", "custom_domain": true }
+  ],
   "assets": { "directory": "./dist", "binding": "ASSETS" },
   // Free tier: 200k log events/day. Per-request invocation logs are off so only our own events count.
   "observability": {

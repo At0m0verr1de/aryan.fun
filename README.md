@@ -1,6 +1,6 @@
 # made by aryan ✨
 
-Small, silly, playable things at **https://madebyaryan.aryanbakshi2021.workers.dev**.
+Small, silly, playable things at **https://rups.fun** (the old https://madebyaryan.aryanbakshi2021.workers.dev address forwards there).
 
 Static Astro site on Cloudflare Workers (static assets), with Supabase for accounts, data, and realtime.
 
@@ -27,7 +27,7 @@ supabase/tests/run.sh
 
 ### 1. Supabase
 1. Create a project at supabase.com (this one is in Tokyo, `ap-northeast-1`).
-2. **Authentication → Sign In / Providers → Google: on** (client ID + secret from a Google Cloud OAuth client, redirect URI `https://<project>.supabase.co/auth/v1/callback`). **URL Configuration:** Site URL `https://madebyaryan.aryanbakshi2021.workers.dev`; Redirect URLs `https://madebyaryan.aryanbakshi2021.workers.dev/**`, `https://*-madebyaryan.aryanbakshi2021.workers.dev/**` (preview URLs), `http://localhost:4321/**`.
+2. **Authentication → Sign In / Providers → Google: on** (client ID + secret from a Google Cloud OAuth client, redirect URI `https://<project>.supabase.co/auth/v1/callback`). **URL Configuration:** Site URL `https://rups.fun`; Redirect URLs `https://rups.fun/**`, `https://*-madebyaryan.aryanbakshi2021.workers.dev/**` (preview URLs), `http://localhost:4321/**`.
 3. **SQL Editor:** run each file in `supabase/migrations/` in filename order.
    (Or with the CLI: `npx supabase link --project-ref <ref>` then `npx supabase db push`.)
 4. **Project Settings → API:** the Project URL and publishable key live in `.env.production` (committed; both are public by design).

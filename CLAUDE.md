@@ -1,6 +1,7 @@
 # CLAUDE.md — made by aryan
 
 Personal project on personal infra only: public npm (`.npmrc`), personal GitHub (At0m0verr1de), Cloudflare Workers static assets, Supabase.
+- Live at https://rups.fun (Workers custom domain in `wrangler.jsonc`). The old workers.dev address and www.rups.fun are redirected in the browser by an inline script in `src/shared/Layout.astro`, because static assets are served before the Worker runs. Sign-in on preview URLs needs `https://*-madebyaryan.aryanbakshi2021.workers.dev/**` in Supabase Redirect URLs.
 Never point it at work registries, work GitHub orgs, or work services.
 
 ## Build & Test
