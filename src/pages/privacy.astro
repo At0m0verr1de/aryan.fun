@@ -11,6 +11,7 @@ import Layout from '../shared/Layout.astro';
       <li><strong>Your Google account basics</strong>: name, email, profile picture link, and an account ID, so you can sign in on any device and stay signed in.</li>
       <li><strong>What you put into a toy</strong>: for example, in Wordle, the display name and emoji you choose, the groups you join (and your couple room, if you pair up with a partner), and the results you submit. A result is saved once per day and belongs to you, so it shows in every group you're in.</li>
       <li><strong>Drinks, if you use it</strong>: each drink you log (type, size, strength, how many, which night), your morning-after rating and notes, and your weekly limit.</li>
+      <li><strong>Date Jar, if you use it</strong>: the date ideas you write, their rough cost, who pays, and, once you've done one, what it cost, your rating, and a one-line memory.</li>
     </ul>
     <ul>
       <li><strong>Basic usage and error logs</strong>: things like "signed in", "created a room", or "this error happened", with your account ID, rough country, and browser type. No names, emails, or anything you type. Cloudflare keeps these for a few days so problems can be fixed.</li>
@@ -18,7 +19,7 @@ import Layout from '../shared/Layout.astro';
     <p>Wordle screenshots are read inside your browser. The image is never uploaded; only the result is saved: solved or not, number of guesses, tile colours, and the words you guessed (which you confirm before saving). To check a screenshot is for the right day, your browser fetches that day's answer through this site after you upload; nothing about you is sent along. Your board and words stay hidden from everyone else until they've played that day too.</p>
 
     <h2>Who can see it</h2>
-    <p>Your results, display name, and emoji are visible only to people who share a group (or your couple room) with you, and only while you share it: leave a group, or get removed, and they stop seeing your results; a couple room, and everything in Drinks, is visible only to you and your partner. Your Google profile picture is never shown. Your email is never shown to other players. Staying signed in uses your browser's local storage; there are no advertising or tracking cookies. Nothing is sold, shared with advertisers, or used for tracking.</p>
+    <p>Your results, display name, and emoji are visible only to people who share a group (or your couple room) with you, and only while you share it: leave a group, or get removed, and they stop seeing your results; a couple room, and everything in Drinks and the Date Jar, is visible only to you and your partner (your partner sees an idea you put in the jar only once the jar picks it). Your Google profile picture is never shown. Your email is never shown to other players. Staying signed in uses your browser's local storage; there are no advertising or tracking cookies. Nothing is sold, shared with advertisers, or used for tracking.</p>
 
     <h2>Where it lives</h2>
     <p>Data is stored with <a href="https://supabase.com">Supabase</a> and the site is served by <a href="https://www.cloudflare.com">Cloudflare</a>.</p>

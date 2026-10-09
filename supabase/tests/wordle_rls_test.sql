@@ -160,6 +160,47 @@ select pg_temp.check('after unpairing the drinks are private again', (select cou
 select public.wordle_set_couple(:'room', true);
 set request.jwt.claim.sub = :'A';
 
+-- Date Jar: only the couple; partner's slips stay folded until drawn; one shared draw; one veto a week
+select public.jar_add('Pottery class', 3000, null, 'out', 'evening') as slip_a \gset
+set request.jwt.claim.sub = :'B';
+select public.jar_add('Blanket fort movie night', 0, :'B', 'in', 'evening') as slip_b \gset
+select pg_temp.check('B sees both slips', (select jsonb_array_length(public.jar_state()->'slips') = 2));
+select pg_temp.check('A''s slip is folded for B, cost still showing', (select s->>'idea' is null and (s->>'cost')::int = 3000
+  from jsonb_array_elements(public.jar_state()->'slips') s where s->>'id' = :'slip_a'));
+select pg_temp.check('B reads their own slip', (select s->>'idea' = 'Blanket fort movie night'
+  from jsonb_array_elements(public.jar_state()->'slips') s where s->>'id' = :'slip_b'));
+select pg_temp.expect_error('nobody reads the jar table directly', 'select * from public.jar_slips');
+select pg_temp.expect_error('the payer has to be one of the couple', format('select public.jar_add(%L, 100, %L, %L, %L)', 'Dinner', :'C', 'out', 'evening'));
+select pg_temp.expect_error('B cannot take out A''s slip', format('select public.jar_remove(%L)', :'slip_a'));
+select pg_temp.expect_error('a draw with no match fails', 'select public.jar_draw(''in'', ''day'', null)');
+select (public.jar_draw('out', null, 5000))->>'idea' as drawn_idea \gset
+select pg_temp.check('B draws A''s slip and can read it', (:'drawn_idea' = 'Pottery class'));
+select pg_temp.expect_error('one date at a time', 'select public.jar_draw()');
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('A sees B drew it', (select s->>'status' = 'drawn' and s->>'drawn_by' = :'B'
+  from jsonb_array_elements(public.jar_state()->'slips') s where s->>'id' = :'slip_a'));
+select public.jar_veto(:'slip_a');
+select pg_temp.check('a veto puts it back', (select s->>'status' = 'jar'
+  from jsonb_array_elements(public.jar_state()->'slips') s where s->>'id' = :'slip_a'));
+select pg_temp.check('and the veto is counted', (select jsonb_array_length(public.jar_state()->'vetoes') = 1));
+select public.jar_draw('out', null, null);
+select pg_temp.expect_error('one veto a week', format('select public.jar_veto(%L)', :'slip_a'));
+set request.jwt.claim.sub = :'B';
+select public.jar_done(:'slip_a', 2800, 5::smallint, 'we made a wonky bowl');
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('the memory is shared', (select s->>'memory' = 'we made a wonky bowl' and (s->>'spent')::int = 2800
+  from jsonb_array_elements(public.jar_state()->'slips') s where s->>'id' = :'slip_a'));
+select pg_temp.expect_error('done dates cannot be taken out', format('select public.jar_remove(%L)', :'slip_a'));
+select pg_temp.expect_error('jar_room is not callable', 'select public.jar_room()');
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('a friend sees none of the jar', (select jsonb_array_length(public.jar_state()->'slips') = 0));
+select pg_temp.expect_error('a friend cannot veto it', format('select public.jar_veto(%L)', :'slip_a'));
+select pg_temp.expect_error('or rewrite the memory', format('select public.jar_done(%L, 0, 1::smallint, %L)', :'slip_a', 'hacked'));
+set request.jwt.claim.sub = :'A';
+select public.wordle_set_couple(:'room', false);
+select pg_temp.check('unpaired, the jar is closed', (select jsonb_array_length(public.jar_state()->'slips') = 0));
+select public.wordle_set_couple(:'room', true);
+
 -- Groups: a result belongs to the person and shows in every room you share with them
 set request.jwt.claim.sub = :'C';
 select pg_temp.check('a group sees A''s old result', (select count(*) = 1 from public.wordle_results where user_id = :'A' and puzzle_no = public.wordle_today() - 5));

@@ -131,6 +131,7 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
   import { coupleHomeData, groupHomeData } from '../toys/wordle-duo/summary.js';
   import { GROUP_EVENT } from '../shared/space.js';
   import { drinksHomeData } from '../toys/drinks/summary.js';
+  import { jarHomeData } from '../toys/date-jar/summary.js';
   import { dateStr } from '../toys/drinks/stats.js';
   import { togetherLabel } from '../shared/together.js';
 
@@ -173,6 +174,9 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
     drinksHomeData(space, supabase)
       .then((line) => set('[data-status="drinks"]', line))
       .catch((err) => reportError(err, 'couple-home-drinks'));
+    jarHomeData(space, supabase)
+      .then((line) => set('[data-status="date-jar"]', line))
+      .catch((err) => reportError(err, 'couple-home-jar'));
     try {
       const data = await coupleHomeData(space, supabase);
       set('[data-status="wordle-duo"]', data.today);
