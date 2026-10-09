@@ -15,9 +15,12 @@ const publicToys = toys.filter((t) => !t.couple); // couple-only toys never show
 const isNew = (t: ToyMeta) => Date.now() - Date.parse(t.added) < NEW_FOR_DAYS * DAY_MS;
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
-// Couple home: the daily game is the wide tile on top, the rest follow newest first.
+// Couple home: the daily game is the wide tile on top, the pet gets a double tile, then the rest.
 const HERO = 'wordle-duo';
-const coupleToys = [...toys].sort((a, b) => Number(b.slug === HERO) - Number(a.slug === HERO));
+const PET = 'our-pet';
+const ORDER = [HERO, PET, 'kitne-ka', 'chess-mates', 'date-jar', 'drinks'];
+const rank = (t: ToyMeta) => (ORDER.includes(t.slug) ? ORDER.indexOf(t.slug) : ORDER.length);
+const coupleToys = [...toys].sort((a, b) => rank(a) - rank(b));
 // Tile drawings: a solved mini board, slips in a jar, a drink with a straw, two pawns.
 const BOARD = ['BYBBB', 'YBGBY', 'GGGGG'];
 const SLIPS = [[16, 72, -18, 'p'], [32, 76, 12, 'g'], [48, 70, -6, 'b'], [22, 60, 24, 'g'], [42, 58, -20, 'p'], [32, 47, 8, 'b'], [50, 82, -10, 'g'], [14, 84, 6, 'b']];
@@ -67,7 +70,7 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
       </div>
       <div class="tiles">
         {coupleToys.map((t) => (
-          <a class:list={['tile', { 'tile-wide': t.slug === HERO }]} href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
+          <a class:list={['tile', { 'tile-wide': t.slug === HERO, 'tile-double': t.slug === PET }]} href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`} data-tile={t.slug}>
             <div class="tile-body">
               <span class="tile-title">{t.title}{t.slug === HERO && <span class="turn" data-turn hidden>your turn</span>}</span>
               <span class="tile-status" data-status={t.slug}>{t.blurb}</span>
@@ -108,6 +111,33 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
                 </g>
                 <path class="glass" d="M14 22h52l-6 64c-.5 5-4 8-9 8H29c-5 0-8.5-3-9-8z" />
                 <circle class="lemon" cx="20" cy="22" r="9" />
+              </svg>
+            )}
+            {t.slug === PET && (
+              <svg class="tile-art tile-art-pet" viewBox="0 0 240 220" aria-hidden="true">
+                <ellipse class="mp-shadow" cx="120" cy="206" rx="48" ry="7" />
+                <g class="mp-body">
+                  <ellipse class="mp-halo" cx="120" cy="54" rx="28" ry="7" />
+                  <path class="mp-line" d="M162 172 C 188 170 200 150 194 128" />
+                  <path class="mp-fill" d="M84 100 L72 58 Q73 50 81 54 L110 84 Z M156 100 L168 58 Q167 50 159 54 L130 84 Z" />
+                  <path class="mp-fill" d="M120 76 C 164 76 184 108 184 146 C 184 184 158 202 120 202 C 82 202 56 184 56 146 C 56 108 76 76 120 76 Z" />
+                  <ellipse class="mp-belly" cx="120" cy="166" rx="38" ry="28" />
+                  <g class="mp-eyes"><ellipse cx="102" cy="132" rx="10" ry="12" /><ellipse cx="138" cy="132" rx="10" ry="12" /></g>
+                  <circle class="mp-shine" cx="105.5" cy="127" r="3.8" /><circle class="mp-shine" cx="141.5" cy="127" r="3.8" />
+                  <ellipse class="mp-cheek" cx="86" cy="150" rx="10" ry="6" /><ellipse class="mp-cheek" cx="154" cy="150" rx="10" ry="6" />
+                  <path class="mp-mouth" d="M110 148 q5 6 10 0 q5 6 10 0" />
+                </g>
+              </svg>
+            )}
+            {t.slug === 'kitne-ka' && (
+              <svg class="tile-art tile-art-tag" viewBox="0 0 80 100" aria-hidden="true">
+                <circle class="tag-pin" cx="40" cy="8" r="4" />
+                <g class="tag">
+                  <path class="tag-string" d="M40 8 L40 26" />
+                  <path class="tag-body" d="M24 30 L40 22 L56 30 L56 86 Q56 92 50 92 L30 92 Q24 92 24 86 Z" />
+                  <circle class="tag-hole" cx="40" cy="32" r="3.5" />
+                  <text class="tag-rupee" x="40" y="70" text-anchor="middle">₹?</text>
+                </g>
               </svg>
             )}
             {t.slug === 'chess-mates' && (
@@ -190,6 +220,8 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
   import { drinksHomeData } from '../toys/drinks/summary.js';
   import { jarHomeData } from '../toys/date-jar/summary.js';
   import { chessHomeData } from '../toys/chess-mates/summary.js';
+  import { kitneHomeData } from '../toys/kitne-ka/summary.js';
+  import { petHomeData } from '../toys/our-pet/summary.js';
   import { dateStr } from '../toys/drinks/stats.js';
   import { togetherLabel } from '../shared/together.js';
 
@@ -235,6 +267,17 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
     jarHomeData(space, supabase)
       .then((line) => set('[data-status="date-jar"]', line))
       .catch((err) => reportError(err, 'couple-home-jar'));
+    kitneHomeData(space, supabase)
+      .then((line) => set('[data-status="kitne-ka"]', line))
+      .catch((err) => reportError(err, 'couple-home-kitne'));
+    petHomeData(space, supabase)
+      .then(({ line, colours, dead }) => {
+        set('[data-status="our-pet"]', line);
+        const tile = document.querySelector<HTMLElement>('[data-tile="our-pet"]')!;
+        tile.classList.toggle('pet-dead', dead);
+        if (colours) { tile.style.setProperty('--pb', colours.body); tile.style.setProperty('--pbelly', colours.belly); }
+      })
+      .catch((err) => reportError(err, 'couple-home-pet'));
     chessHomeData(space, supabase)
       .then((line) => set('[data-status="chess-mates"]', line))
       .catch((err) => reportError(err, 'couple-home-chess'));
@@ -468,21 +511,52 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
   a.tile:hover .pawn-w { transform: rotate(9deg); }
   a.tile:hover .pawn-b { transform: rotate(-9deg); }
   a.tile:hover .tile-art-chess { transform: none; }
+  .tile.tile-double { grid-column: span 2; }
+  .tile-art-pet { width: 132px; align-self: center; }
+  a.tile:hover .tile-art-pet { transform: rotate(-3deg) scale(1.05); }
+  .mp-body { transform-origin: 120px 205px; animation: mp-breathe 3.2s ease-in-out infinite; }
+  @keyframes mp-breathe { 50% { transform: scale(.99, 1.04); } }
+  a.tile:hover .mp-body { animation: mp-hop .6s ease-in-out; }
+  @keyframes mp-hop { 50% { transform: translateY(-26px) scale(.96, 1.05); } }
+  .mp-shadow { fill: rgba(0, 0, 0, .25); }
+  .mp-fill { fill: var(--pb, #ffb3cf); stroke: #3a2530; stroke-width: 4; stroke-linejoin: round; }
+  .mp-line { fill: none; stroke: #3a2530; stroke-width: 16; stroke-linecap: round; }
+  .mp-belly { fill: var(--pbelly, #ffe3ee); }
+  .mp-eyes ellipse { fill: #2b1a24; transform-box: fill-box; transform-origin: center; animation: mp-blink 4.5s infinite; }
+  @keyframes mp-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+  .mp-shine { fill: #fff; }
+  .mp-cheek { fill: #ff7fa8; opacity: .5; }
+  .mp-mouth { fill: none; stroke: #2b1a24; stroke-width: 4; stroke-linecap: round; }
+  .mp-halo { display: none; fill: none; stroke: #ffe27a; stroke-width: 5; }
+  .tile.pet-dead .tile-art-pet { filter: saturate(.1) brightness(1.1); opacity: .7; }
+  .tile.pet-dead .mp-halo { display: inline; }
+  .tile.pet-dead .mp-body { animation: mp-ghost 3.4s ease-in-out infinite; }
+  @keyframes mp-ghost { 50% { transform: translateY(-12px); } }
+  .tile-art-tag { width: 64px; }
+  .tag { transform-origin: 40px 8px; animation: tag-swing 2.8s ease-in-out infinite; }
+  @keyframes tag-swing { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
+  .tag-pin { fill: color-mix(in srgb, var(--text) 50%, transparent); }
+  .tag-string { stroke: color-mix(in srgb, var(--text) 50%, transparent); stroke-width: 2; }
+  .tag-body { fill: var(--gold); stroke: #8a6414; stroke-width: 2.5; stroke-linejoin: round; }
+  .tag-hole { fill: var(--surface); stroke: #8a6414; stroke-width: 2; }
+  .tag-rupee { font: 900 22px Fredoka, Nunito, sans-serif; fill: #3a2400; }
   .chess-heart { fill: var(--heart); transform-box: fill-box; transform-origin: center; animation: heartbeat 1.6s ease-in-out infinite; }
 
   @media (max-width: 900px) {
     .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .tile:not(.tile-wide):last-child:nth-child(even) { grid-column: 1 / -1; }
+    .tile:not(.tile-wide):not(.tile-double):last-child:nth-child(odd) { grid-column: 1 / -1; }
   }
   @media (max-width: 640px) {
     .tiles { grid-template-columns: 1fr; }
+    .tile.tile-double { grid-column: auto; }
+    .tile-art-pet { width: 96px; }
     .tile { min-height: 140px; }
     .tile.tile-wide { padding: 20px; }
     .tile-art { width: 70px; }
     .tile-art-wordle { width: 108px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .tile, .wt, .wave, .bubble, .turn::before, a.tile:hover .slips, .chess-heart { animation: none; }
+    .tile, .wt, .wave, .bubble, .turn::before, a.tile:hover .slips, .chess-heart, .mp-body, .mp-eyes ellipse, .tag { animation: none; }
   }
 
   /* group home */

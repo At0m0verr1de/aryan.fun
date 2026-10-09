@@ -282,6 +282,92 @@ select public.wordle_set_couple(:'room', false);
 select pg_temp.check('unpaired, the jar is closed', (select jsonb_array_length(public.jar_state()->'slips') = 0));
 select public.wordle_set_couple(:'room', true);
 
+-- Our pet: shared by the couple, meters drain with time, dies after 7 days alone, other toys feed it
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('no pet yet', (select public.pet_state() -> 'pet' = 'null'::jsonb));
+select pg_temp.expect_error('a nameless pet is refused', 'select public.pet_adopt(''  '', ''pink'')');
+select pg_temp.expect_error('an odd colour is refused', 'select public.pet_adopt(''Mochi'', ''plaid'')');
+select pg_temp.check('A hatches Mochi, meters full', (select p -> 'name' = '"Mochi"' and (p ->> 'hunger')::real = 100 and (p ->> 'health')::real = 100
+  from (select public.pet_adopt(' Mochi ', 'pink') -> 'pet' as p) x));
+select pg_temp.expect_error('one pet at a time', 'select public.pet_adopt(''Bun'', ''blue'')');
+select pg_temp.expect_error('nobody reads the pet table', 'select * from public.pets');
+select pg_temp.expect_error('nobody writes the meters', 'update public.pets set health = 100');
+select pg_temp.expect_error('the boost is not callable', 'select public.pet_boost(public.jar_room(), null, ''wordle'')');
+select pg_temp.expect_error('nor the meter maths', 'select public.pet_apply(public.jar_room(), 100, 100, 100)');
+select pg_temp.expect_error('unknown actions are refused', 'select public.pet_act(''tickle'')');
+select public.pet_act('feed');
+select public.pet_act('feed');
+select public.pet_act('feed');
+select pg_temp.check('three feeds a day count', (select (public.pet_act('feed') -> 'today' ->> 'feed')::int = 3));
+set request.jwt.claim.sub = :'B';
+select pg_temp.check('B sees the same pet and what A did', (select s -> 'pet' ->> 'name' = 'Mochi' and s -> 'today' = '{}'::jsonb
+  and s -> 'events' -> 0 ->> 'kind' = 'feed' and s -> 'events' -> 0 ->> 'user_id' = :'A' from (select public.pet_state() as s) x));
+reset role;
+update public.pets set hunger = 50, happiness = 50, health = 50, updated_at = now();
+set role authenticated;
+insert into public.drinks (day, kind, ml, abv, qty) values (current_date, 'beer', 330, 5, 1);
+select pg_temp.check('logging a drink cheers the pet up', (select (p ->> 'hunger')::real between 59.9 and 60 and (p ->> 'health')::real between 69.9 and 70
+  from (select public.pet_state() -> 'pet' as p) x));
+insert into public.drinks (day, kind, ml, abv, qty) values (current_date, 'beer', 330, 5, 1);
+select pg_temp.check('but only once a day per toy', (select (public.pet_state() -> 'pet' ->> 'health')::real < 70.1));
+select pg_temp.check('and the toy shows as recently played', (select public.pet_state() -> 'last' ? 'drinks'));
+reset role;
+update public.pets set hunger = 100, happiness = 100, health = 100, updated_at = now() - interval '48 hours';
+set role authenticated;
+select pg_temp.check('two days alone: starving, a bit sad, health mostly fine', (select (p ->> 'hunger')::real = 0
+  and (p ->> 'happiness')::real between 33 and 34 and (p ->> 'health')::real between 85 and 86 and p ->> 'died_at' is null
+  from (select public.pet_state() -> 'pet' as p) x));
+reset role;
+update public.pets set hunger = 100, happiness = 100, health = 100, updated_at = now() - interval '6 days 23 hours';
+set role authenticated;
+select pg_temp.check('just under 7 days alone: still hanging on', (select p ->> 'died_at' is null and (p ->> 'health')::real between 0.1 and 1.5
+  from (select public.pet_state() -> 'pet' as p) x));
+reset role;
+update public.pets set hunger = 100, happiness = 100, health = 100, updated_at = now() - interval '7 days 1 hour';
+set role authenticated;
+select pg_temp.check('7 days alone and it dies, right at 7 days', (select abs(extract(epoch from (p ->> 'died_at')::timestamptz - (now() - interval '1 hour'))) < 120
+  and (p ->> 'health')::real = 0 from (select public.pet_state() -> 'pet' as p) x));
+select pg_temp.check('feeding cannot bring it back', (select public.pet_act('feed') -> 'pet' ->> 'died_at' is not null));
+select pg_temp.check('a new egg after a loss', (select s -> 'pet' ->> 'name' = 'Bun' and s -> 'pet' ->> 'died_at' is null
+  and s -> 'graves' -> 0 ->> 'name' = 'Mochi' from (select public.pet_adopt('Bun', 'blue') as s) x));
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('a friend sees no pet of ours', (select public.pet_state() -> 'pet' = 'null'::jsonb and public.pet_state() -> 'graves' = '[]'::jsonb));
+select pg_temp.expect_error('and cannot hatch one alone', 'select public.pet_adopt(''Solo'', ''mint'')');
+set request.jwt.claim.sub = :'A';
+
+-- Kitne Ka?: same five for both, prices and partner guesses only after you guess
+select pg_temp.check('five things to price today, no prices shown', (select jsonb_array_length(t -> 'items') = 5
+  and not exists (select 1 from jsonb_array_elements(t -> 'items') i where i ->> 'price' is not null)
+  from (select public.price_today() as t) x));
+reset role;
+select i.price as p0, i.id as i0 from public.price_items_for(public.price_today_date()) t join public.price_items i on i.id = t.item_id where t.slot = 0 \gset
+set role authenticated;
+select pg_temp.check('a spot-on guess scores 100 and shows the price', (select (i ->> 'points')::int = 100 and (i ->> 'price')::bigint = :p0
+  from (select public.price_guess(0, :p0) -> 'items' -> 0 as i) x));
+select pg_temp.expect_error('one guess per thing', format('select public.price_guess(0, %s)', :p0));
+select pg_temp.expect_error('no sixth item', 'select public.price_guess(5, 100)');
+select pg_temp.expect_error('no free things', 'select public.price_guess(1, 0)');
+select pg_temp.expect_error('nobody reads the price list', 'select * from public.price_items');
+select pg_temp.expect_error('nobody reads guesses directly', 'select * from public.price_guesses');
+select pg_temp.expect_error('the day''s picks are not callable', 'select * from public.price_items_for(current_date)');
+set request.jwt.claim.sub = :'B';
+select pg_temp.check('B sees A played, but not A''s guess or the price', (select (i ->> 'partner_played')::boolean and i ->> 'partner_guess' is null and i ->> 'price' is null
+  from (select public.price_today() -> 'items' -> 0 as i) x));
+select pg_temp.check('double the price scores 37, and now A''s guess shows', (select (i ->> 'points')::int = 37 and (i ->> 'partner_guess')::bigint = :p0 and (i ->> 'partner_points')::int = 100
+  from (select public.price_guess(0, :p0 * 2) -> 'items' -> 0 as i) x));
+select pg_temp.check('playing feeds the pet', (select public.pet_state() -> 'last' ? 'kitne'));
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('B''s total today stays hidden until A finishes', (select not exists (select 1 from jsonb_array_elements(public.price_today() -> 'history') h where h ->> 'user_id' = :'B')));
+select public.price_guess(1, 100);
+select public.price_guess(2, 1000);
+select public.price_guess(3, 10000);
+select pg_temp.check('after all five, B''s total shows', (select exists (select 1 from jsonb_array_elements(public.price_guess(4, 100000) -> 'history') h
+  where h ->> 'user_id' = :'B' and (h ->> 'points')::int = 37)));
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('a friend gets the same five but none of our guesses', (select not exists (select 1 from jsonb_array_elements(public.price_today() -> 'items') i
+  where (i ->> 'partner_played')::boolean or i ->> 'guess' is not null)));
+set request.jwt.claim.sub = :'A';
+
 -- Groups: a result belongs to the person and shows in every room you share with them
 set request.jwt.claim.sub = :'C';
 select pg_temp.check('a group sees A''s old result', (select count(*) = 1 from public.wordle_results where user_id = :'A' and puzzle_no = public.wordle_today() - 5));

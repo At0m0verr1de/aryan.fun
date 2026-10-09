@@ -13,6 +13,8 @@ import Layout from '../shared/Layout.astro';
       <li><strong>Drinks, if you use it</strong>: each drink you log (type, size, strength, how many, which night), your morning-after rating and notes, and your weekly limit.</li>
       <li><strong>Access requests</strong>: if you tap "Request access", that you asked and when, until you're let in.</li>
       <li><strong>Chess Mates, if you use it</strong>: the two chess.com usernames you enter, and the public chess.com games between those two accounts (result, ratings, accuracy, opening, final position, link). The site asks chess.com for these itself, every few hours and when you open the page.</li>
+      <li><strong>Kitne Ka?, if you play it</strong>: your price guesses and scores, by day.</li>
+      <li><strong>Our Little Pet, if you hatch one</strong>: its name and colour, its meters, and a log of who fed, played with or cuddled it and when. Playing the other toys is noted there too (which toy and when, nothing about what you played), because that's what cheers it up.</li>
       <li><strong>Date Jar, if you use it</strong>: the date ideas you write, their rough cost, who pays, and, once you've done one, what it cost, your rating, and a one-line memory.</li>
     </ul>
     <ul>
@@ -21,7 +23,7 @@ import Layout from '../shared/Layout.astro';
     <p>Wordle screenshots are read inside your browser. The image is never uploaded; only the result is saved: solved or not, number of guesses, tile colours, and the words you guessed (which you confirm before saving). To check a screenshot is for the right day, your browser fetches that day's answer through this site after you upload; nothing about you is sent along. Your board and words stay hidden from everyone else until they've played that day too.</p>
 
     <h2>Who can see it</h2>
-    <p>Your results, display name, and emoji are visible only to people who share a group (or your couple room) with you, and only while you share it: leave a group, or get removed, and they stop seeing your results; a couple room, and everything in Drinks, Chess Mates and the Date Jar, is visible only to you and your partner (your partner sees an idea you put in the jar only once the jar picks it). Your Google profile picture is never shown. Your email is never shown to other players. Staying signed in uses your browser's local storage; there are no advertising or tracking cookies. Nothing is sold, shared with advertisers, or used for tracking.</p>
+    <p>Your results, display name, and emoji are visible only to people who share a group (or your couple room) with you, and only while you share it: leave a group, or get removed, and they stop seeing your results; a couple room, and everything in Drinks, Chess Mates, Kitne Ka?, your pet and the Date Jar, is visible only to you and your partner (your partner sees an idea you put in the jar only once the jar picks it). Your Google profile picture is never shown. Your email is never shown to other players. Staying signed in uses your browser's local storage; there are no advertising or tracking cookies. Nothing is sold, shared with advertisers, or used for tracking.</p>
 
     <h2>Where it lives</h2>
     <p>Data is stored with <a href="https://supabase.com">Supabase</a> and the site is served by <a href="https://www.cloudflare.com">Cloudflare</a>.</p>
