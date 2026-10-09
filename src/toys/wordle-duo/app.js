@@ -1,6 +1,8 @@
-// Wordle Duo UI: onboarding (create / join a room) and the room view.
+// Wordle UI: onboarding (create / join), the couple's head-to-head (Wordle Duo) and a group's leaderboard.
 import { isConfigured, currentUser, signInWithGoogle, firstName } from '../../shared/supabase.js';
-import { loadSpace, forgetSpace, emojiOf, EMOJIS } from '../../shared/space.js';
+import {
+  loadSpace, forgetSpace, emojiOf, EMOJIS, GROUP_ICONS, GROUP_MAX, GROUP_EVENT, setGroup, groupChanged, setMode,
+} from '../../shared/space.js';
 import { track, reportError } from '../../shared/telemetry.js';
 import { GOOGLE } from '../../shared/icons.js';
 import { buildTemplates, browserRenderer, REFERENCE_FONTS, readGlyphs, scoreBoard, learnFromGreens } from './ocr.js';
@@ -11,23 +13,18 @@ import {
   SLOTS, localDateStr, addDays, puzzleNo, dateForPuzzle, mondayIndex, toUTC,
   scoreLabel, other, winnerOf, computeStats, weekStandings,
 } from './scoring.js';
+import { rankDay, standings, dayHeadline } from './leaderboard.js';
 
 const MAX_SIDE = 900;
 const HISTORY_DAYS = 400;
 const HISTORY_PAGE = 21;
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const CALENDAR_WEEKS = 12;
-const LAST_ROOM_KEY = 'wordle-duo:last-room';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtDate = (s, opts) => new Date(toUTC(s)).toLocaleDateString(undefined, { timeZone: 'UTC', ...opts });
 const errMsg = (e) => e?.message || 'Something went wrong';
-const store = {
-  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
-  del(k) { try { localStorage.removeItem(k); } catch { /* private mode */ } },
-};
 
 const ui = {
   me: null,
@@ -43,6 +40,8 @@ const ui = {
   live: null,
   historyLimit: HISTORY_PAGE,
   openDays: new Set(), // history rows the player has expanded
+  openRows: new Set(), // leaderboard rows tapped open (user ids)
+  boardTab: 'week',
 };
 
 /* ---------- room data helpers ---------- */
@@ -51,17 +50,22 @@ const mySlot = () => SLOTS.find((p) => memberIn(p)?.user_id === ui.me);
 const pname = (p) => esc(memberIn(p)?.display_name ?? 'your person');
 const avatarHtml = (m) => (m ? `<span class="avatar emo">${esc(emojiOf(m))}</span>` : '<span class="avatar empty">?</span>');
 const isCouple = () => ui.room?.kind === 'couple';
+const isGroup = () => ui.room?.kind === 'group';
 const inCoupleMode = () => ui.space?.mode === 'couple' && isCouple();
+const myResult = (puzzle) => ui.results.get(puzzle)?.[ui.me] ?? null;
+// Groups colour people by slot; the couple keeps blue and pink.
+const SLOT_COLOURS = ['var(--blue)', 'var(--pink)', 'var(--mint)', 'var(--gold)', 'var(--lilac)', '#7dd3fc', '#f9a8d4', '#86efac', '#fdba74', '#c4b5fd'];
+const colourOf = (m) => SLOT_COLOURS[(m.slot - 1) % SLOT_COLOURS.length];
 
 // A row of emoji buttons feeding a hidden input, for the create/join forms and settings.
-function emojiPicker(name, chosen) {
+function emojiPicker(name, chosen, choices = EMOJIS) {
   return `<div class="emoji-pick" data-emoji-pick>
     <input type="hidden" name="${name}" value="${esc(chosen)}">
-    ${EMOJIS.map((e) => `<button type="button" class="${e === chosen ? 'on' : ''}" data-pick="${e}" aria-label="${e}">${e}</button>`).join('')}
+    ${choices.map((e) => `<button type="button" class="${e === chosen ? 'on' : ''}" data-pick="${e}" aria-label="${e}">${e}</button>`).join('')}
   </div>`;
 }
 const pavatar = (p) => avatarHtml(memberIn(p));
-const inviteLink = () => `${location.origin}${location.pathname}?join=${ui.room.invite_code}`;
+const inviteLink = (room = ui.room) => `${location.origin}${location.pathname}?join=${room.invite_code}`;
 
 function dayFor(puzzle) {
   const row = ui.results.get(puzzle) || {};
@@ -110,34 +114,34 @@ function showSignIn(authError) {
     </div>`);
 }
 
+// No group open: your groups, start one, or join with a code.
 async function showHome() {
   ui.live?.close();
   ui.live = null;
   ui.room = null;
   history.replaceState(null, '', location.pathname);
-  let rooms = [];
-  try { rooms = await api.listMyRooms(); } catch (e) { fail(e, 'list-rooms'); }
-  // Your partner lives in partner mode only; Groups lists everything else.
-  rooms = rooms.filter((r) => r.kind !== 'couple');
+  setTitle('group');
+  const groups = ui.space?.groups ?? [];
   const single = !ui.space?.couple;
   const create = ui.space?.access ? `
       <form class="card" data-form="create">
-        <h2>Start a room</h2>
-        <p class="muted">Make a room, send the invite link to your person, and the daily showdown begins.</p>
-        <label>Room name<input class="field-input" name="room" maxlength="40" value="Us" required></label>
-        <label>Your name<input class="field-input" name="name" maxlength="24" placeholder="Aryan" value="${esc(ui.myName)}" required></label>
+        <h2>Start a group</h2>
+        <p class="muted">Up to ${GROUP_MAX} people. Everyone uploads their Wordle and the leaderboard does the rest.</p>
+        <label>Group name<input class="field-input" name="room" maxlength="40" placeholder="College gang" required></label>
+        <label>Icon</label>${emojiPicker('icon', GROUP_ICONS[0], GROUP_ICONS)}
+        <label>Your name<input class="field-input" name="name" maxlength="24" value="${esc(ui.myName)}" required></label>
         <label>Your emoji</label>${emojiPicker('emoji', EMOJIS[0])}
-        ${single ? '<label class="check"><input type="checkbox" name="couple"> This is for my partner 💞</label>' : ''}
-        <button class="btn" style="--pc:var(--pink)">Create room</button>
+        ${single ? '<label class="check"><input type="checkbox" name="couple"> Actually, this is just me and my partner 💞</label>' : ''}
+        <button class="btn" style="--pc:var(--pink)">Create group</button>
       </form>` : `
       <div class="card">
         <h2>Invite only, for now</h2>
-        <p class="muted">Rooms open with an invite. If someone sent you a code, pop it in here. 💌</p>
+        <p class="muted">Groups open with an invite. If someone sent you a code, pop it in here. 💌</p>
       </div>`;
   showGate(`
     <div class="gate-grid">
-      ${rooms.length ? `<div class="card span"><h2>Your rooms</h2><div class="room-list">${rooms.map((r) =>
-        `<button class="btn ghost" data-action="open-room" data-id="${r.id}">${r.kind === 'couple' ? '💞 ' : ''}${esc(r.name)}</button>`).join('')}</div></div>` : ''}
+      ${groups.length ? `<div class="card span"><h2>Your groups</h2><div class="gate-groups">${groups.map((g) =>
+        `<button class="btn ghost" data-action="open-room" data-id="${g.id}">${esc(g.icon)} ${esc(g.name)} <small class="muted">${g.members.length}</small></button>`).join('')}</div></div>` : ''}
       ${create}
       <form class="card" data-form="code">
         <h2>Got a code?</h2>
@@ -157,18 +161,23 @@ async function showJoin(code) {
       <button class="btn ghost" data-action="home">Back</button></div>`);
     return;
   }
-  if (preview.already_member && await openRoom(preview.room_id)) return;
+  const asPartner = preview.room_kind === 'couple';
+  if (preview.already_member) {
+    setMode(asPartner ? 'couple' : 'general');
+    if (await openRoom(preview.room_id)) return;
+  }
   if (preview.is_full) {
     showGate(`<div class="card center"><h2>${esc(preview.room_name)} is full</h2>
-      <p class="muted">It's a duo — two players max.</p><button class="btn ghost" data-action="home">Start your own</button></div>`);
+      <p class="muted">${asPartner ? "It's for two." : `Groups hold ${preview.max_members} people.`}</p><button class="btn ghost" data-action="home">Start your own</button></div>`);
     return;
   }
-  const who = preview.member_names.map(esc).join(' &amp; ');
-  const asPartner = preview.room_kind === 'couple';
+  const names = preview.member_names.map(esc);
+  const who = asPartner ? names.join(' &amp; ')
+    : names.length > 3 ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more` : names.join(', ');
   showGate(`
-    <form class="card center narrow" data-form="join" data-code="${esc(code)}">
-      <h2>Join “${esc(preview.room_name)}”</h2>
-      ${who ? `<p class="muted">${asPartner ? `${who} wants you as their partner 💞` : `with ${who}`}</p>` : ''}
+    <form class="card center narrow" data-form="join" data-code="${esc(code)}" data-kind="${esc(preview.room_kind)}">
+      <h2>Join ${asPartner ? '' : `${esc(preview.room_icon)} `}“${esc(preview.room_name)}”</h2>
+      ${who ? `<p class="muted">${asPartner ? `${who} wants you as their partner 💞` : `Wordle leaderboard with ${who}`}</p>` : ''}
       <label>Your name<input class="field-input" name="name" maxlength="24" value="${esc(ui.myName)}" required></label>
       <label>Your emoji</label>${emojiPicker('emoji', EMOJIS[1])}
       <button class="btn" style="--pc:var(--pink)">Join</button>
@@ -176,19 +185,23 @@ async function showJoin(code) {
 }
 
 async function openRoom(roomId) {
-  showGate('<div class="card center">Opening your room…</div>');
+  if (ui.room?.id !== roomId) showGate('<div class="card center">Opening…</div>');
   try {
     const data = await api.loadRoom(roomId, puzzleNo(localDateStr()) - HISTORY_DAYS);
-    if (!data.room) { store.del(LAST_ROOM_KEY); return false; }
+    if (!data.room) return false;
     apply(data);
   } catch (e) {
     fail(e, 'open-room');
     return false;
   }
-  if (roomId !== ui.space?.couple?.room.id) store.set(LAST_ROOM_KEY, roomId);
+  ui.openRows = new Set();
+  ui.pending = null;
+  // Keep the header's group switcher on the group you're looking at.
+  if (isGroup() && ui.space) setGroup(ui.space, roomId);
   history.replaceState(null, '', `${location.pathname}?room=${roomId}`);
   ui.live?.close();
   ui.live = api.subscribe(roomId, () => refresh());
+  if (ui.pingOnOpen) { ui.pingOnOpen = false; setTimeout(() => ui.live?.ping(), 800); }
   $('gate').hidden = true;
   $('room-view').hidden = false;
   render();
@@ -199,16 +212,20 @@ async function openRoom(roomId) {
 async function refresh() {
   if (!ui.room) return false;
   const puzzle = puzzleNo(ui.selected);
-  const before = winnerOf(dayFor(puzzle));
+  const before = !isGroup() && winnerOf(dayFor(puzzle));
   try {
     const data = await api.loadRoom(ui.room.id, puzzleNo(localDateStr()) - HISTORY_DAYS);
-    if (!data.room) { toast('You are no longer in that room'); await showHome(); return false; }
+    if (!data.room) {
+      toast('You are no longer in that group');
+      ui.space = await groupChanged({ id: ui.me }, null);
+      return false;
+    }
     apply(data);
   } catch (e) {
     fail(e, 'refresh');
     return false;
   }
-  ui.celebrate = !before && !!winnerOf(dayFor(puzzle));
+  ui.celebrate = !isGroup() && !before && !!winnerOf(dayFor(puzzle));
   const celebrated = ui.celebrate;
   render();
   return celebrated;
@@ -222,10 +239,125 @@ function miniGrid(grid, size = '', words = null) {
 
 const sourceLabel = (r) => ({ screenshot: '📸 screenshot', text: '📋 share text', manual: '✍️ by hand' }[r.source] || '') + (r.verified ? ' · ✅ checked' : '');
 
+// "Wordle Duo ♥" for the couple, "Wordle Leaderboard" for a group: page heading, crumb and tab title.
+function setTitle(kind) {
+  const title = kind === 'couple' ? 'Wordle Duo' : 'Wordle Leaderboard';
+  $('wd-title').innerHTML = kind === 'couple' ? `${title} <span class="heart beat" aria-hidden="true">♥</span>` : title;
+  const crumb = document.querySelector('.crumb');
+  if (crumb) crumb.lastChild.textContent = title;
+  document.title = `${title} · made by aryan`;
+}
+
 function renderHeader() {
+  setTitle(ui.room.kind);
+  $('room-view').dataset.kind = isGroup() ? 'board' : 'duo';
+  $('head-invite').hidden = !isGroup();
+  if (isGroup()) {
+    $('vs').innerHTML = `<span class="faces-row">${ui.members.map((m) => `<span title="${esc(m.display_name)}">${esc(emojiOf(m))}</span>`).join('')}
+      <span class="count">${ui.members.length}/${ui.room.max_members}</span></span>`;
+    $('room-name').textContent = `${ui.room.icon} ${ui.room.name}`;
+    return;
+  }
   const between = isCouple() ? '<span class="heart beat">♥</span>' : '<span class="vs-x">vs</span>';
   $('vs').innerHTML = `<span class="a">${pavatar('p1')}${pname('p1')}</span>${between}<span class="b">${pname('p2')}${pavatar('p2')}</span>`;
   $('room-name').textContent = ui.room.name;
+}
+
+const renderToday = () => (isGroup() ? renderBoard() : renderDay());
+
+/* ---------- group leaderboard ---------- */
+// Tile picture without letters, for a leaderboard row.
+const strip = (grid, ghost = false) => miniGrid(grid?.length ? grid : ['BBBBB', 'BBBBB', 'BBBBB'], `strip${ghost ? ' ghost' : ''}`);
+
+function renderBoard() {
+  const t = localDateStr();
+  const puzzle = puzzleNo(ui.selected);
+  $('dayLabel').textContent = ui.selected === t ? 'Today' : ui.selected === addDays(t, -1) ? 'Yesterday' : fmtDate(ui.selected, { weekday: 'short', month: 'short', day: 'numeric' });
+  $('puzzleLabel').textContent = `Wordle #${puzzle.toLocaleString()} · ${fmtDate(ui.selected, { month: 'long', day: 'numeric', year: 'numeric' })}`;
+  $('nextBtn').disabled = ui.selected >= t;
+
+  const rows = rankDay(ui.members, ui.results.get(puzzle) || {}, ui.submitted.get(puzzle) || new Set());
+  const me = ui.members.find((m) => m.user_id === ui.me);
+  $('me-card').innerHTML = `<div class="card player" style="--pc:${colourOf(me)}">
+    <div class="phead">${avatarHtml(me)}<span class="pname">Your board</span></div>${myBody(puzzle)}</div>`;
+  $('board-head').textContent = dayHeadline(rows, ui.me, ui.selected === t);
+  const crowns = rows.filter((r) => r.result).length > 1;
+  const spare = ui.room.max_members - ui.members.length;
+  // Your own empty row would just repeat the card above it.
+  $('board').innerHTML = rows.filter((r) => r.result || r.member.user_id !== ui.me).map((r) => boardRow(r, crowns, ui.selected < t)).join('') + (spare > 0 ? `
+    <div class="lb invite-row"><button class="lb-row" data-action="copy-invite"><span class="rank">＋</span>
+      <span class="who"><b>Invite people</b><small>Room for ${spare} more · code ${esc(ui.room.invite_code)}</small></span><span class="state">Share 💌</span></button></div>` : '');
+  renderStandings();
+}
+
+function boardRow({ member: m, result: r, played, rank }, crowns, isPast) {
+  const isMe = m.user_id === ui.me;
+  const style = `style="--pc:${colourOf(m)}"`;
+  const who = `<span class="who"><b>${esc(m.display_name)}${isMe ? ' <span class="you">you</span>' : ''}</b>`;
+  if (r) {
+    const open = ui.openRows.has(m.user_id);
+    const badge = rank === 1 && crowns ? '👑' : rank;
+    const detail = open ? `<div class="lb-detail">${r.grid?.length ? miniGrid(r.grid, r.words ? 'md lettered' : 'md', r.words) : ''}
+      <div class="hmeta">${scoreLabel(r)}/6 · ${sourceLabel(r)}${r.words ? '' : '<br>No words saved for this board'}</div></div>` : '';
+    return `<div class="lb${isMe ? ' me' : ''}" ${style}>
+      <button class="lb-row" data-action="lb-toggle" data-uid="${m.user_id}" aria-expanded="${open}">
+        <span class="rank ${rank === 1 ? 'r1' : ''}">${badge}</span>${avatarHtml(m)}${who}<small>${r.solved ? 'tap to see guesses' : 'stumped'}</small></span>
+        <span class="pts">${scoreLabel(r)}<small>/6</small></span>${strip(r.grid)}</button>${detail}</div>`;
+  }
+  if (played) {
+    return `<div class="lb sealed-row" ${style}><div class="lb-row"><span class="rank">🔒</span>${avatarHtml(m)}${who}<small>played · add yours to see</small></span>
+      <span class="pts">?</span>${strip(null, true)}</div></div>`;
+  }
+  return `<div class="lb idle" ${style}><div class="lb-row"><span class="rank">·</span>${avatarHtml(m)}${who}<small>${isPast ? "didn't play" : 'hasn’t played yet'}</small></span>
+    <span class="state">💤</span><span></span></div></div>`;
+}
+
+function renderStandings() {
+  const t = localDateStr();
+  const today = puzzleNo(t);
+  const since = puzzleNo(localDateStr(new Date(ui.room.created_at)));
+  const from = ui.boardTab === 'week' ? puzzleNo(addDays(t, -mondayIndex(t))) : since;
+  const rows = standings(ui.members, (n) => ui.results.get(n), from, today, today - HISTORY_DAYS);
+  document.querySelectorAll('[data-action="board-tab"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === ui.boardTab)));
+  const sealed = !myResult(today) && [...(ui.submitted.get(today) || [])].some((id) => id !== ui.me);
+  $('standings').innerHTML = `<table class="stand">
+    <thead><tr><th></th><th>Player</th><th>Pts</th><th>Played</th><th>Avg</th><th>Streak</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr class="${r.member.user_id === ui.me ? 'me' : ''}" style="--pc:${colourOf(r.member)}">
+      <td class="r">${r.points && r.rank === 1 ? '👑' : r.rank}</td>
+      <td class="n"><span>${esc(emojiOf(r.member))} ${esc(r.member.display_name)}</span></td>
+      <td class="p">${r.points}</td><td>${r.played}</td><td>${r.avg ? r.avg.toFixed(1) : '–'}</td><td>${r.streak}${r.streak >= 3 ? '🔥' : ''}</td></tr>`).join('')}</tbody>
+  </table>
+  <p class="stand-note">Solved in 1 = 6 pts, 2 = 5 … 6 = 1, X = 0.${ui.boardTab === 'all' ? ` Since ${esc(fmtDate(dateForPuzzle(since), { month: 'short', day: 'numeric' }))}, when the group started.` : ''}${sealed ? " Today's scores join in once you've played." : ''}</p>`;
+}
+
+// Your result for the day, or everything you need to add it (screenshot, quick pick, share text).
+function myBody(puzzle) {
+  const r = myResult(puzzle);
+  if (r) {
+    return `<div class="result">${r.grid?.length ? miniGrid(r.grid, r.words ? 'lettered' : '', r.words) : ''}
+      <div><div class="score">${scoreLabel(r)}<small>/6</small></div>
+      <div class="meta-row"><span>${sourceLabel(r)}</span><button class="link-btn" data-action="redo">redo</button></div></div></div>`;
+  }
+  return uploadBody();
+}
+
+function uploadBody() {
+  const pend = ui.pending;
+  if (pend?.kind === 'confirm') return confirmPanel(pend);
+  const retry = pend?.otherDay ? ` <button class="link-btn" data-action="use-other-day">Save it for ${esc(fmtDate(pend.otherDay, { month: 'short', day: 'numeric' }))} instead</button>` : '';
+  return `<label class="drop" data-drop>
+      <input type="file" accept="image/*" data-file>
+      <span class="big">📸</span><span class="t">Add your screenshot</span>
+      <span class="s">tap to choose · drag &amp; drop · or paste</span>
+    </label>
+    ${pend ? `<div class="note ${pend.ok ? 'info' : ''}">${pend.ok && pend.grid?.length ? miniGrid(pend.grid, 'sm') + '<br>' : ''}${esc(pend.note || '')}${pend.ok ? ' Pick your score below to save it.' : ''}${retry}</div>` : ''}
+    <div class="alts">
+      <div class="quick">or quick pick: ${[1, 2, 3, 4, 5, 6, 'X'].map((g) => `<button class="chip" data-action="manual" data-g="${g}">${g}</button>`).join('')}</div>
+      <details><summary>or paste the Wordle share text</summary>
+        <textarea data-text placeholder="Wordle 1,936 3/6&#10;&#10;⬛🟨⬛⬛⬛&#10;🟩🟩⬛🟨⬛&#10;🟩🟩🟩🟩🟩"></textarea>
+        <button class="btn" data-action="use-text" style="margin-top:8px">Use this</button>
+      </details>
+    </div>`;
 }
 
 function renderDay() {
@@ -283,22 +415,7 @@ function playerCard(p, day, winner, puzzle) {
       <div class="score">${scoreLabel(r)}<small>/6</small></div>
       <div class="meta-row"><span>${sourceLabel(r)}</span>${isMe ? '<button class="link-btn" data-action="redo">redo</button>' : ''}</div></div>`;
   } else if (isMe) {
-    const pend = ui.pending;
-    if (pend?.kind === 'confirm') return `<div class="card player" style="--pc:var(--${p})">${head}${confirmPanel(pend)}</div>`;
-    const retry = pend?.otherDay ? ` <button class="link-btn" data-action="use-other-day">Save it for ${esc(fmtDate(pend.otherDay, { month: 'short', day: 'numeric' }))} instead</button>` : '';
-    body = `<label class="drop" data-drop>
-        <input type="file" accept="image/*" data-file>
-        <span class="big">📸</span><span class="t">Add your screenshot</span>
-        <span class="s">tap to choose · drag &amp; drop · or paste</span>
-      </label>
-      ${pend ? `<div class="note ${pend.ok ? 'info' : ''}">${pend.ok && pend.grid?.length ? miniGrid(pend.grid, 'sm') + '<br>' : ''}${esc(pend.note || '')}${pend.ok ? ' Pick your score below to save it.' : ''}${retry}</div>` : ''}
-      <div class="alts">
-        <div class="quick">or quick pick: ${[1, 2, 3, 4, 5, 6, 'X'].map((g) => `<button class="chip" data-action="manual" data-g="${g}">${g}</button>`).join('')}</div>
-        <details><summary>or paste the Wordle share text</summary>
-          <textarea data-text placeholder="Wordle 1,936 3/6&#10;&#10;⬛🟨⬛⬛⬛&#10;🟩🟩⬛🟨⬛&#10;🟩🟩🟩🟩🟩"></textarea>
-          <button class="btn" data-action="use-text" style="margin-top:8px">Use this</button>
-        </details>
-      </div>`;
+    body = uploadBody();
   } else if (playedFor(puzzle, p)) {
     body = `<div class="sealed"><div class="env">💌</div><b>Sealed</b><small>Add yours to unseal it</small></div>`;
   } else {
@@ -485,6 +602,7 @@ function historySide(p, day, n, w) {
 
 function render() {
   renderHeader();
+  if (isGroup()) { renderBoard(); return; }
   renderDay();
   renderScoreboard();
   renderCalendar();
@@ -523,7 +641,7 @@ function burst(w) {
 /* ---------- saving ---------- */
 async function saveMine(puzzle, result) {
   try {
-    await api.submitResult(ui.room.id, ui.me, puzzle, result);
+    await api.submitResult(ui.me, puzzle, result);
   } catch (e) {
     if (e?.code === '23505') toast('Already saved for that day. Hit redo first.');
     else fail(e, 'save-result');
@@ -596,7 +714,7 @@ async function handleFile(file) {
     });
     const { pixels, ...rest } = shot; // don't keep the image around
     ui.pending = rest;
-    renderDay();
+    renderToday();
     return;
   }
   const date = ui.selected;
@@ -617,8 +735,7 @@ async function handleFile(file) {
     // Most often it's yesterday's board uploaded after midnight; offer to file it there.
     const yesterday = addDays(date, -1);
     const prev = await fetchAnswer(yesterday);
-    const me = mySlot();
-    const fitsYesterday = Boolean(prev) && verifyBoard(shot.grid, scores, prev).verdict === 'match' && !(me && dayFor(puzzleNo(yesterday))[me]);
+    const fitsYesterday = Boolean(prev) && verifyBoard(shot.grid, scores, prev).verdict === 'match' && !myResult(puzzleNo(yesterday));
     track('wordle_screenshot_rejected', { ratio: check.ratio, evidence: check.evidence, fits_yesterday: fitsYesterday });
     ui.pending = {
       ok: false,
@@ -628,7 +745,7 @@ async function handleFile(file) {
       otherDay: fitsYesterday ? yesterday : null,
       file: fitsYesterday ? file : null,
     };
-    renderDay();
+    renderToday();
     return;
   }
   if (check.verdict === 'match') scores = scoreBoard(glyphs, learnFromGreens(reference, glyphs, shot.grid, answer));
@@ -643,7 +760,7 @@ async function handleFile(file) {
     shot: { grid, guesses, solved, source },
     rows: rows.map((r) => ({ ...r, read: r.word })),
   };
-  renderDay();
+  renderToday();
 }
 
 async function saveConfirmed() {
@@ -670,39 +787,57 @@ async function handleManual(g) {
 /* ---------- settings ---------- */
 function openSettings() {
   const me = ui.members.find((m) => m.user_id === ui.me);
+  const creator = ui.room.created_by === ui.me;
+  $('set-title').textContent = isGroup() ? 'Group settings' : 'Room settings';
   $('set-name').value = me?.display_name ?? '';
   $('set-emoji').innerHTML = emojiPicker('emoji', emojiOf(me));
+  $('set-room-label').textContent = isGroup() ? 'Group name' : 'Room name';
   $('set-room').value = ui.room.name;
-  $('set-room').disabled = ui.room.created_by !== ui.me;
+  $('set-room').disabled = !creator;
+  $('set-icon-wrap').hidden = !isGroup() || !creator;
+  $('set-icon').innerHTML = isGroup() ? emojiPicker('icon', ui.room.icon, GROUP_ICONS) : '';
   $('set-invite').textContent = inviteLink();
   $('set-couple').hidden = !isCouple();
   $('set-since').value = ui.room.since ?? '';
-  // Turning a duo into your couple room: only when it's just the two of you and you're both single.
-  $('make-couple').hidden = isCouple() || Boolean(ui.space?.couple) || ui.room.max_members !== 2;
-  for (const id of ['switch-room-btn', 'leave-room-btn']) $(id).hidden = inCoupleMode();
+  // People: anyone sees the list; the creator can remove others.
+  $('set-members-wrap').hidden = !isGroup();
+  $('set-members-label').textContent = `People · ${ui.members.length}/${ui.room.max_members}`;
+  $('set-members').innerHTML = isGroup() ? ui.members.map((m) => `<li>${esc(emojiOf(m))} ${esc(m.display_name)}
+    ${m.user_id === ui.room.created_by ? '<small>started it</small>' : ''}${m.user_id === ui.me ? '<small>you</small>' : ''}
+    ${creator && m.user_id !== ui.me ? `<button class="link-btn" data-action="remove-member" data-id="${m.user_id}">remove</button>` : ''}</li>`).join('') : '';
+  // A group of just the two of you can become your couple room, if you're both single.
+  $('make-couple').hidden = !isGroup() || Boolean(ui.space?.couple) || ui.members.length > 2;
+  $('leave-room-btn').hidden = inCoupleMode();
+  $('leave-room-btn').textContent = isGroup() ? 'Leave group' : 'Leave';
   $('settings').showModal();
 }
 
 async function saveSettings() {
   const me = ui.members.find((m) => m.user_id === ui.me);
   const name = $('set-name').value.trim();
-  const emoji = $('settings').querySelector('input[name="emoji"]').value;
+  const emoji = $('set-emoji').querySelector('input[name="emoji"]').value;
   const roomName = $('set-room').value.trim();
+  const icon = $('set-icon').querySelector('input[name="icon"]')?.value;
   const since = $('set-since').value || null;
   try {
     const patch = {};
     if (me && name && name !== me.display_name) patch.display_name = name;
     if (me && emoji && emoji !== me.emoji) patch.emoji = emoji;
     if (Object.keys(patch).length) await api.updateMe(ui.room.id, ui.me, patch);
-    if (ui.room.created_by === ui.me && roomName && roomName !== ui.room.name) await api.renameRoom(ui.room.id, roomName);
+    if (ui.room.created_by === ui.me) {
+      const room = {};
+      if (roomName && roomName !== ui.room.name) room.name = roomName;
+      if (isGroup() && icon && icon !== ui.room.icon) room.icon = icon;
+      if (Object.keys(room).length) await api.updateRoom(ui.room.id, room);
+    }
     if (isCouple() && since !== (ui.room.since ?? null)) await api.setCouple(ui.room.id, true, since);
-    forgetSpace();
   } catch (e) {
     fail(e, 'save-settings');
     return;
   }
   $('settings').close();
   ui.live?.ping();
+  ui.space = await groupChanged({ id: ui.me }, isGroup() ? ui.room.id : null);
   await refresh();
   toast('Saved ✨');
 }
@@ -719,16 +854,17 @@ function exportData() {
   };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-  a.download = `wordle-duo-${localDateStr()}.json`;
+  a.download = `wordle-${localDateStr()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 async function copyInvite() {
   const link = inviteLink();
+  const text = isGroup() ? `Join "${ui.room.name}" on my Wordle leaderboard ${ui.room.icon}` : `Join my Wordle Duo room "${ui.room.name}" 💌`;
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'Wordle Duo', text: `Join my Wordle Duo room "${ui.room.name}" 💌`, url: link });
+      await navigator.share({ title: isGroup() ? 'Wordle Leaderboard' : 'Wordle Duo', text, url: link });
       track('wordle_invite_shared', { method: 'share' });
       return;
     } catch { /* fall back to copy */ }
@@ -759,7 +895,7 @@ document.addEventListener('click', async (e) => {
     case 'next': if (ui.selected < localDateStr()) { ui.selected = addDays(ui.selected, 1); ui.pending = null; render(); } break;
     case 'goto': ui.selected = d; ui.pending = null; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
     case 'redo':
-      try { await api.deleteResult(ui.room.id, ui.me, puzzleNo(ui.selected)); } catch (err) { fail(err, 'redo'); break; }
+      try { await api.deleteResult(ui.me, puzzleNo(ui.selected)); } catch (err) { fail(err, 'redo'); break; }
       ui.live?.ping();
       await refresh();
       break;
@@ -767,9 +903,9 @@ document.addEventListener('click', async (e) => {
     case 'confirm-save':
       el.disabled = true;
       await saveConfirmed();
-      if (ui.pending?.kind === 'confirm') renderDay(); // save failed; re-enable
+      if (ui.pending?.kind === 'confirm') renderToday(); // save failed; re-enable
       break;
-    case 'confirm-cancel': ui.pending = null; renderDay(); break;
+    case 'confirm-cancel': ui.pending = null; renderToday(); break;
     case 'pick-alt': {
       const input = document.querySelector(`.word-input[data-row="${el.dataset.row}"]`);
       input.value = el.dataset.word;
@@ -795,29 +931,46 @@ document.addEventListener('click', async (e) => {
     case 'save-settings': await saveSettings(); break;
     case 'export': exportData(); break;
     case 'make-couple':
-      if (!confirm(`Make “${ui.room.name}” your couple room? 💞 It becomes your home screen together.`)) break;
+      if (!confirm(`Make “${ui.room.name}” your couple room? 💞 It moves out of Groups and becomes your home screen together.`)) break;
       try { await api.setCouple(ui.room.id, true, null); } catch (err) { fail(err, 'make-couple'); break; }
       track('couple_set', { since: false });
-      forgetSpace();
-      ui.space = await loadSpace({ id: ui.me });
-      $('settings').close();
       ui.live?.ping();
-      await refresh();
-      toast('You two are official 💞');
+      forgetSpace();
+      setMode('couple');
+      location.href = BASE;
       break;
-    case 'switch-room': $('settings').close(); store.del(LAST_ROOM_KEY); await showHome(); break;
+    case 'board-tab': ui.boardTab = el.dataset.tab; renderStandings(); break;
+    case 'lb-toggle': {
+      const uid = el.dataset.uid;
+      if (ui.openRows.has(uid)) ui.openRows.delete(uid); else ui.openRows.add(uid);
+      if (ui.openRows.has(uid)) track('wordle_board_opened', { own: uid === ui.me });
+      renderBoard();
+      break;
+    }
+    case 'remove-member': {
+      const who = ui.members.find((m) => m.user_id === id);
+      if (!who || !confirm(`Remove ${who.display_name} from “${ui.room.name}”? They can come back if someone sends them the invite again.`)) break;
+      try { await api.removeMember(ui.room.id, id); } catch (err) { fail(err, 'remove-member'); break; }
+      track('group_member_removed');
+      ui.live?.ping();
+      $('settings').close();
+      ui.space = await groupChanged({ id: ui.me }, ui.room.id);
+      await refresh();
+      toast(`${who.display_name} was removed`);
+      break;
+    }
     case 'google':
       el.disabled = true;
       try { await signInWithGoogle(); } catch (err) { fail(err, 'signin'); el.disabled = false; }
       break;
     case 'leave-room':
-      if (!confirm(`Leave “${ui.room.name}”? Your results in this room are deleted.`)) break;
+      if (!confirm(`Leave “${ui.room.name}”? Your results stay yours; they just won't show here anymore.`)) break;
       try { await api.leaveRoom(ui.room.id, ui.me); } catch (err) { fail(err, 'leave-room'); break; }
-      track('wordle_room_left');
+      track('wordle_room_left', { kind: ui.room.kind });
       ui.live?.ping();
       $('settings').close();
-      store.del(LAST_ROOM_KEY);
-      await showHome();
+      ui.room = null;
+      ui.space = await groupChanged({ id: ui.me }, null); // opens your next group, or the start screen
       break;
   }
 });
@@ -831,21 +984,33 @@ document.addEventListener('submit', async (e) => {
   button.disabled = true;
   try {
     if (form.dataset.form === 'create') {
-      const kind = f.get('couple') ? 'couple' : 'duo';
-      const room = await api.createRoom(f.get('room').trim(), f.get('name').trim(), f.get('emoji'), kind);
+      const kind = f.get('couple') ? 'couple' : 'group';
+      const room = await api.createRoom(f.get('room').trim(), f.get('name').trim(), f.get('emoji'), kind, f.get('icon'));
       track('wordle_room_created', { kind });
-      forgetSpace();
-      ui.space = await loadSpace({ id: ui.me });
-      await openRoom(room.id);
+      if (kind === 'couple') {
+        forgetSpace();
+        setMode('couple');
+        ui.space = await loadSpace({ id: ui.me });
+        await openRoom(room.id);
+      } else {
+        ui.space = await groupChanged({ id: ui.me }, room.id); // the group listener opens it
+      }
     } else if (form.dataset.form === 'code') {
       history.replaceState(null, '', `${location.pathname}?join=${encodeURIComponent(f.get('code').trim())}`);
       await showJoin(f.get('code').trim());
     } else if (form.dataset.form === 'join') {
       const roomId = await api.joinRoom(form.dataset.code, f.get('name').trim(), f.get('emoji'));
-      track('wordle_room_joined');
-      forgetSpace();
-      ui.space = await loadSpace({ id: ui.me });
-      if (await openRoom(roomId)) ui.live?.ping();
+      const couple = form.dataset.kind === 'couple';
+      track('wordle_room_joined', { kind: form.dataset.kind });
+      ui.pingOnOpen = true; // let everyone already in see you arrive
+      setMode(couple ? 'couple' : 'general');
+      if (couple) {
+        forgetSpace();
+        ui.space = await loadSpace({ id: ui.me });
+        await openRoom(roomId);
+      } else {
+        ui.space = await groupChanged({ id: ui.me }, roomId);
+      }
     }
   } catch (err) {
     fail(err, `form-${form.dataset.form}`);
@@ -889,8 +1054,7 @@ document.addEventListener('paste', (e) => {
   if (!ui.room || e.target.matches('textarea, input')) return;
   const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
   if (!item) return;
-  const me = mySlot();
-  if (me && dayFor(puzzleNo(ui.selected))[me]) { toast('Your board is already in for this day'); return; }
+  if (myResult(puzzleNo(ui.selected))) { toast('Your board is already in for this day'); return; }
   handleFile(item.getAsFile());
 });
 document.addEventListener('visibilitychange', () => {
@@ -898,6 +1062,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------- boot ---------- */
+document.documentElement.dataset.groups = 'live'; // the header's switcher redraws us in place
 async function boot() {
   if (!isConfigured) {
     showGate(`<div class="card center"><h2>Almost there</h2><p class="muted">Add <code>PUBLIC_SUPABASE_URL</code> and <code>PUBLIC_SUPABASE_ANON_KEY</code> to <code>.env</code>, then restart.</p></div>`);
@@ -928,13 +1093,24 @@ async function boot() {
     fail(e, 'load-space');
   }
   if (params.get('join')) { await showJoin(params.get('join')); return; }
-  // Partner mode: Wordle simply is your couple room. Groups never opens it.
+  // Partner mode: Wordle simply is your couple room. Groups never opens it: a ?room= link, else the switcher's group.
   const coupleRoom = ui.space?.couple?.room.id ?? null;
+  const linked = params.get('room');
   const roomId = ui.space?.mode === 'couple'
     ? coupleRoom
-    : [params.get('room'), store.get(LAST_ROOM_KEY)].find((id) => id && id !== coupleRoom);
+    : (linked && linked !== coupleRoom ? linked : ui.space?.group?.id);
   if (roomId && await openRoom(roomId)) return;
   await showHome();
 }
+
+// The header's group switcher (or a create/join/leave here) picked another group: swap in place.
+window.addEventListener(GROUP_EVENT, async (e) => {
+  if (!ui.me || ui.space?.mode === 'couple') return;
+  ui.space = await loadSpace({ id: ui.me });
+  const id = e.detail?.id;
+  if (id && id === ui.room?.id) return; // already showing it (openRoom itself told the header)
+  if (id && await openRoom(id)) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  await showHome();
+});
 
 boot();

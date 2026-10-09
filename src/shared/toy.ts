@@ -8,4 +8,6 @@ export interface ToyMeta {
   tags?: string[];
   hidden?: boolean;    // keep work-in-progress toys off the homepage
   couple?: boolean;    // partner-only: shown on the couple home, never in general mode
+  groupTitle?: string; // name and line in Groups mode, when they differ from the couple's
+  groupBlurb?: string;
 }

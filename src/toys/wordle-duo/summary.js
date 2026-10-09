@@ -1,5 +1,6 @@
-// One-line Wordle status for the couple home: who has played today, and this month's tally.
+// One-line Wordle status for the home page: the couple's today + month tally, or a group's today.
 import { localDateStr, puzzleNo, winnerOf } from './scoring.js';
+import { rankDay } from './leaderboard.js';
 
 // Pure, so it's testable: members [{ user_id, slot, display_name }], meId, submissions [{ user_id, puzzle_no }],
 // results [{ user_id, puzzle_no, solved, guesses }] (only what the no-spoiler rule returned), today = puzzle no.
@@ -55,11 +56,40 @@ export async function coupleHomeData(space, client) {
   const roomId = space.couple.room.id;
   const [subs, results] = await Promise.all([
     client.rpc('wordle_submissions', { p_room: roomId, p_from_puzzle: Math.min(monthStart, today) }),
-    client.from('wordle_results').select('user_id, puzzle_no, solved, guesses').eq('room_id', roomId).gte('puzzle_no', monthStart),
+    client.from('wordle_results').select('user_id, puzzle_no, solved, guesses')
+      .in('user_id', space.couple.members.map((m) => m.user_id)).gte('puzzle_no', monthStart),
   ]);
   if (subs.error) throw subs.error;
   if (results.error) throw results.error;
   return summarize({
     members: space.couple.members, meId: space.couple.me.user_id, submissions: subs.data, results: results.data, today, monthStart,
   });
+}
+
+const ordinal = (n) => `${n}${[, 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] || 'th'}`;
+
+// A group's today, for its home tile: progress, and your place once you can see the boards.
+export function groupLine(members, meId, day, played) {
+  const rows = rankDay(members, day, played);
+  const count = rows.filter((r) => r.played).length;
+  if (members.length < 2) return 'Just you so far. Invite your people 💌';
+  if (!count) return "Nobody's played today. Go first 👀";
+  const me = rows.find((r) => r.member.user_id === meId);
+  if (!me?.result) return `${count} of ${members.length} played today, your turn 👀`;
+  const place = me.rank === 1 ? 'you lead 👑' : `you're ${ordinal(me.rank)}`;
+  return `${count} of ${members.length} played today · ${place}`;
+}
+
+export async function groupHomeData(group, meId, client) {
+  const today = puzzleNo(localDateStr());
+  const [subs, results] = await Promise.all([
+    client.rpc('wordle_submissions', { p_room: group.id, p_from_puzzle: today }),
+    client.from('wordle_results').select('user_id, puzzle_no, solved, guesses, created_at')
+      .in('user_id', group.members.map((m) => m.user_id)).eq('puzzle_no', today),
+  ]);
+  if (subs.error) throw subs.error;
+  if (results.error) throw results.error;
+  const day = Object.fromEntries(results.data.map((r) => [r.user_id, r]));
+  const played = new Set(subs.data.filter((s) => s.puzzle_no === today).map((s) => s.user_id));
+  return groupLine(group.members, meId, day, played);
 }

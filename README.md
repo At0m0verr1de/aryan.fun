@@ -62,5 +62,5 @@ The homepage picks the toy up automatically. Set `hidden: true` in `meta` while 
 
 | Toy | What |
 |---|---|
-| [Wordle Duo](src/toys/wordle-duo) | Private rooms for two. Upload Wordle screenshots (read in the browser, checked against that day's answer, guessed words read and revealed once you both play), no-spoiler rule enforced by the database, live updates. |
+| [Wordle Duo / Leaderboard](src/toys/wordle-duo) | A head-to-head for your couple, and a ranked leaderboard for groups of up to 10 (switch groups from the header on any page). Upload once a day and it counts everywhere. Upload Wordle screenshots (read in the browser, checked against that day's answer, guessed words read and revealed once you both play), no-spoiler rule enforced by the database, live updates. |
 | [Drinks](src/toys/drinks) | Couples only. Two 15-shot pitchers fill with how much each of you drank this month, counted in shots (30 ml at 40%) whatever the drink. Overflow and you're cut off. Morning-after ratings and notes, a month heatmap and year view, streaks, and a weekly limit. |

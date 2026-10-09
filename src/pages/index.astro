@@ -67,14 +67,29 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
     </section>
 
     <section class="view general">
-      <section class="hero">
+      <!-- Groups mode with a group picked: that group's home. -->
+      <section class="group-home" data-group-home hidden>
+        <div class="gh-icon" data-gh-icon></div>
+        <h1 data-gh-name></h1>
+        <p class="gh-faces" data-gh-faces></p>
+        <div class="gh-actions">
+          <button class="btn" type="button" data-gh-invite style="--pc:var(--lilac)">Invite people 💌</button>
+          <span class="muted gh-copied" data-gh-copied hidden>Link copied ✓</span>
+        </div>
+      </section>
+
+      <section class="hero" data-hero>
         <p class="eyebrow">a growing collection of tiny web toys</p>
         <h1>Small, silly,<br /><span class="grad">playable things.</span></h1>
         <p class="lede">Welcome, <strong data-first-name>friend</strong>. Little games to play with your people.</p>
+        <div class="hero-actions" data-no-group hidden>
+          <button class="btn" type="button" data-start-group style="--pc:var(--pink)">Start a group</button>
+          <button class="btn ghost" type="button" data-join-group>Join with a code</button>
+        </div>
       </section>
 
       <div class="section-head">
-        <h2>Toys</h2>
+        <h2 data-toys-head>Toys</h2>
         <span>{publicToys.length} so far</span>
       </div>
 
@@ -83,8 +98,9 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
           <a class="toy" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
             <div class="art"><span class="num">{number(i)}</span>{isNew(t) && <span class="badge">new</span>}</div>
             <div class="body">
-              <h3>{t.title}</h3>
-              <p>{t.blurb}</p>
+              <h3>{t.groupTitle ?? t.title}</h3>
+              <p>{t.groupBlurb ?? t.blurb}</p>
+              <p class="toy-status" data-toy-status={t.slug} hidden></p>
               <div class="foot">
                 <div class="tags">{t.tags?.map((tag) => <span>{tag}</span>)}</div>
                 <span class="play">Play <Fragment set:html={ARROW(16)} /></span>
@@ -112,7 +128,8 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
   import { supabase, isConfigured, currentUser, signInWithGoogle, firstName } from '../shared/supabase.js';
   import { loadSpace, forgetSpace, emojiOf } from '../shared/space.js';
   import { track, reportError } from '../shared/telemetry.js';
-  import { coupleHomeData } from '../toys/wordle-duo/summary.js';
+  import { coupleHomeData, groupHomeData } from '../toys/wordle-duo/summary.js';
+  import { GROUP_EVENT } from '../shared/space.js';
   import { drinksHomeData } from '../toys/drinks/summary.js';
   import { dateStr } from '../toys/drinks/stats.js';
   import { togetherLabel } from '../shared/together.js';
@@ -181,6 +198,64 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
     showCouple(await loadSpace(user!));
   });
 
+  // Groups mode: the picked group's home, or an invitation to start one. Redraws when the header switches group.
+  function showGeneral(space: any, user: any) {
+    document.documentElement.dataset.groups = 'live';
+    const g = space.group;
+    document.querySelector<HTMLElement>('[data-group-home]')!.hidden = !g;
+    document.querySelector<HTMLElement>('[data-hero]')!.hidden = Boolean(g);
+    document.querySelector<HTMLElement>('[data-no-group]')!.hidden = Boolean(g);
+    set('[data-toys-head]', g ? 'Play together' : 'Toys');
+    const status = document.querySelector<HTMLElement>('[data-toy-status="wordle-duo"]');
+    if (status) status.hidden = !g;
+    show('general');
+    if (!g) return;
+    set('[data-gh-icon]', g.icon);
+    set('[data-gh-name]', g.name);
+    document.querySelector('[data-gh-faces]')!.innerHTML = g.members
+      .map((m: any) => `<span title="${m.display_name.replace(/"/g, '&quot;')}">${emojiOf(m)}</span>`).join('')
+      + `<small>${g.members.length} of ${g.max_members}</small>`;
+    if (status) {
+      status.textContent = '…';
+      groupHomeData(g, user.id, supabase)
+        .then((line: string) => { status.textContent = line; })
+        .catch((err: unknown) => reportError(err, 'group-home'));
+    }
+  }
+
+  document.querySelector('[data-gh-invite]')!.addEventListener('click', async () => {
+    const user = await currentUser();
+    const g = user && (await loadSpace(user) as any).group;
+    if (!g) return;
+    const link = `${location.origin}${import.meta.env.BASE_URL.replace(/\/?$/, '/')}wordle-duo/?join=${g.invite_code}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Wordle Leaderboard', text: `Join "${g.name}" on my Wordle leaderboard ${g.icon}`, url: link });
+        track('wordle_invite_shared', { method: 'share', where: 'group-home' });
+        return;
+      }
+    } catch { /* cancelled: copy instead */ }
+    try {
+      await navigator.clipboard.writeText(link);
+      track('wordle_invite_shared', { method: 'copy', where: 'group-home' });
+      const copied = document.querySelector<HTMLElement>('[data-gh-copied]')!;
+      copied.hidden = false;
+      setTimeout(() => { copied.hidden = true; }, 1800);
+    } catch {
+      prompt('Copy this invite link:', link);
+    }
+  });
+  // These open the header's dialogs, so starting or joining works the same everywhere.
+  document.querySelector('[data-start-group]')!.addEventListener('click', () => document.querySelector<HTMLElement>('[data-gs="new"]')?.click());
+  document.querySelector('[data-join-group]')!.addEventListener('click', () => document.querySelector<HTMLElement>('[data-gs="join"]')?.click());
+
+  window.addEventListener(GROUP_EVENT, async () => {
+    const user = await currentUser();
+    if (!user) return;
+    const space: any = await loadSpace(user);
+    if (space.mode === 'general' && space.access) showGeneral(space, user);
+  });
+
   async function route() {
     if (!isConfigured) { show('door'); return; }
     let user;
@@ -191,7 +266,7 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
       if (space.couple && space.mode === 'couple') { await showCouple(space); return; }
       if (space.access) {
         set('[data-first-name]', firstName(user) || 'friend');
-        show('general');
+        showGeneral(space, user);
         return;
       }
       track('access_denied');
@@ -249,6 +324,17 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
   .tile-go { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: var(--accent); }
   .tile.soon { outline-style: dashed; background: transparent; }
   .tile.tally { --accent: var(--heart); }
+
+  /* group home */
+  .group-home { text-align: center; padding: 40px 0 34px; animation: rise .6s both cubic-bezier(.2, 1.2, .4, 1); }
+  .gh-icon { font-size: clamp(3rem, 10vw, 4.2rem); line-height: 1; }
+  .group-home h1 { margin: 10px 0 8px; font-size: clamp(2rem, 6vw, 2.8rem); }
+  .gh-faces { margin: 0; font-size: 1.6rem; display: flex; justify-content: center; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .gh-faces small { font-size: .85rem; color: var(--faint); font-weight: 700; margin-left: 8px; }
+  .gh-actions { margin-top: 18px; display: flex; justify-content: center; align-items: center; gap: 12px; }
+  .hero-actions { margin-top: 24px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .hero-actions .btn { padding: 11px 18px; font-size: 1rem; }
+  .toy-status { color: var(--text) !important; font-weight: 700; font-size: .9rem !important; }
 
   /* general */
   .hero { padding: 56px 0 44px; max-width: 720px; }

@@ -10,6 +10,21 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 <header class="site-head">
   <div class="site-head-inner">
     <a class="wordmark" href={base}><span class="dot"></span><span data-wordmark>made by aryan</span></a>
+
+    <!-- Groups mode: which group you're looking at, switchable from any page. -->
+    <div class="group-switch" data-groups hidden>
+      <button class="gs-btn" data-gs="toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch group">
+        <span data-gs-icon>＋</span><span class="gs-name" data-gs-name>Groups</span><span class="gs-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="menu gs-menu" role="menu" data-gs-menu hidden>
+        <div class="gs-list" data-gs-list></div>
+        <hr data-gs-sep />
+        <button role="menuitem" type="button" data-gs="invite">💌 <span>Invite people</span></button>
+        <button role="menuitem" type="button" data-gs="new">＋ New group</button>
+        <button role="menuitem" type="button" data-gs="join">🔑 Join with a code</button>
+      </div>
+    </div>
+
     {crumb && <span class="crumb"><span class="sep">/</span>{crumb}</span>}
 
     <div class="account" data-account data-state="loading">
@@ -38,6 +53,18 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     </div>
   </div>
 </header>
+
+<dialog class="gs-dialog" data-gs-dialog>
+  <form method="dialog" data-gs-form>
+    <h3 data-gs-title>New group</h3>
+    <div data-gs-fields></div>
+    <p class="gs-error" data-gs-error hidden></p>
+    <div class="gs-actions">
+      <button class="btn ghost" type="button" data-gs="cancel">Cancel</button>
+      <button class="btn" type="submit" data-gs-submit>Create</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
   import './header.js';
@@ -86,5 +113,31 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   .mode-row span:first-child { margin-right: auto; }
   .menu .mode-row button { width: auto; padding: 4px 10px; font-size: .82rem; border-radius: 999px; }
   .menu .mode-row button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--heart) 55%, var(--line)); }
-  @media (max-width: 480px) { .crumb { display: none; } }
+  .group-switch { position: relative; min-width: 0; }
+  .gs-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 5px 10px 5px 8px; border-radius: 999px; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); color: var(--text); font-weight: 800; font-size: .88rem; transition: border-color .15s; }
+  .gs-btn:hover, .gs-btn[aria-expanded="true"] { border-color: var(--lilac); }
+  .gs-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .gs-caret { color: var(--faint); font-size: .75rem; }
+  .menu.gs-menu { left: 0; right: auto; min-width: 250px; }
+  .gs-list { display: grid; gap: 2px; max-height: 50vh; overflow-y: auto; }
+  .menu .gs-list button { display: flex; align-items: center; gap: 10px; }
+  .gs-list .gs-count { margin-left: auto; color: var(--faint); font-size: .8rem; font-weight: 700; }
+  .menu .gs-list button[aria-current="true"] { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--lilac); }
+  .gs-dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); padding: 22px; width: min(440px, calc(100% - 32px)); }
+  .gs-dialog::backdrop { background: rgba(8, 6, 14, .7); }
+  .gs-dialog h3 { margin: 0 0 6px; font-family: Fredoka, sans-serif; }
+  .gs-dialog label { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; color: var(--muted); font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
+  .gs-dialog .field-input { text-transform: none; letter-spacing: normal; font-size: 1rem; }
+  .gs-dialog .field-input.code { text-transform: uppercase; letter-spacing: 4px; text-align: center; font-size: 1.3rem; font-weight: 800; }
+  .gs-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; }
+  .gs-pick button { height: 36px; font-size: 1.2rem; border-radius: 10px; border: 1px solid transparent; background: var(--surface-2); cursor: pointer; padding: 0; }
+  .gs-pick button.on { border-color: var(--lilac); background: color-mix(in srgb, var(--lilac) 18%, var(--surface-2)); }
+  .gs-error { color: var(--danger); font-weight: 700; font-size: .9rem; margin: 12px 0 0; }
+  .gs-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  @media (max-width: 480px) {
+    .crumb { display: none; }
+    .gs-btn { max-width: 150px; }
+    .wordmark { font-size: 1rem; }
+  }
 </style>

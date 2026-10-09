@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarize } from './summary.js';
+import { summarize, groupLine } from './summary.js';
 
 const A = 'a';
 const R = 'r';
@@ -34,4 +34,14 @@ test('month tally counts only this month and only days both played', () => {
 
 test('a couple still waiting for the partner', () => {
   assert.equal(summarize({ ...base, members: [members[0]], submissions: [], results: [] }).today, 'Waiting for your person to join 💌');
+});
+
+test('group home line: progress, then your place', () => {
+  const people = [{ user_id: 'a', display_name: 'Aryan' }, { user_id: 'k', display_name: 'Kabir' }, { user_id: 'z', display_name: 'Zoya' }];
+  const won = (g) => ({ solved: true, guesses: g });
+  assert.match(groupLine(people.slice(0, 1), 'a', {}, new Set()), /Just you/);
+  assert.equal(groupLine(people, 'a', {}, new Set()), "Nobody's played today. Go first 👀");
+  assert.equal(groupLine(people, 'a', {}, new Set(['k'])), '1 of 3 played today, your turn 👀');
+  assert.equal(groupLine(people, 'a', { a: won(3), k: won(2) }, new Set()), "2 of 3 played today · you're 2nd");
+  assert.equal(groupLine(people, 'a', { a: won(2), k: won(4) }, new Set()), '2 of 3 played today · you lead 👑');
 });

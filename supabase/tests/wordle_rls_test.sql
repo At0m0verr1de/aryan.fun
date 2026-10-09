@@ -29,6 +29,7 @@ select pg_temp.expect_error('C cannot start a room', format('select public.wordl
 set request.jwt.claim.sub = :'A';
 select invite_code as code, id as room from public.wordle_create_room('Us', 'Aryan', '🐻') \gset
 select pg_temp.check('A sees own room', (select count(*) = 1 from public.wordle_rooms));
+select pg_temp.check('new rooms are groups of 10', (select kind = 'group' and max_members = 10 and icon = '🎲' from public.wordle_rooms where id = :'room'));
 
 -- B previews and joins
 set request.jwt.claim.sub = :'B';
@@ -38,20 +39,18 @@ select pg_temp.check('B join returns room', (select public.wordle_join_room(lowe
 select pg_temp.check('B join is idempotent', (select public.wordle_join_room(:'code', 'Bae', '🐰') = :'room'::uuid));
 select pg_temp.check('B got slot 2', (select slot = 2 from public.wordle_members where user_id = :'B'));
 
--- C is locked out
+-- C, with no invite, can't post results
 set request.jwt.claim.sub = :'C';
-select pg_temp.expect_error('C cannot join a full room', format('select public.wordle_join_room(%L, %L, %L)', :'code', 'Eve', '😈'));
-select pg_temp.check('C preview says full', (select is_full from public.wordle_room_preview(:'code')));
-select pg_temp.expect_error('C cannot insert into the room', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, source) values (%L, %L, public.wordle_today(), true, 3, %L)',
-  :'room', :'C', 'manual'));
+select pg_temp.expect_error('C cannot post a result without an invite', format(
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source) values (%L, public.wordle_today(), true, 3, %L)',
+  :'C', 'manual'));
 
 -- A plays today
 set request.jwt.claim.sub = :'A';
-insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, source)
-  values (:'room', :'A', public.wordle_today(), true, 3, array['BYBBB', 'GGYBB', 'GGGGG'], 'screenshot');
-insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, source)
-  values (:'room', :'A', public.wordle_today() - 5, true, 4, 'manual');
+insert into public.wordle_results (user_id, puzzle_no, solved, guesses, grid, source)
+  values (:'A', public.wordle_today(), true, 3, array['BYBBB', 'GGYBB', 'GGGGG'], 'screenshot');
+insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source)
+  values (:'A', public.wordle_today() - 5, true, 4, 'manual');
 
 -- No spoilers for B
 set request.jwt.claim.sub = :'B';
@@ -60,39 +59,39 @@ select pg_temp.check('B can see that A played today', (select count(*) = 1 from 
 select pg_temp.check('B can read A''s 5-day-old result', (select count(*) = 1 from public.wordle_results where puzzle_no = public.wordle_today() - 5));
 
 -- B plays, then sees both
-insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, source)
-  values (:'room', :'B', public.wordle_today(), false, null, 'manual');
+insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source)
+  values (:'B', public.wordle_today(), false, null, 'manual');
 select pg_temp.check('B sees both results after playing', (select count(*) = 2 from public.wordle_results where puzzle_no = public.wordle_today()));
 
 -- Tampering
 select pg_temp.expect_error('B cannot submit as A', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, source) values (%L, %L, public.wordle_today() - 1, true, 2, %L)',
-  :'room', :'A', 'manual'));
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source) values (%L, public.wordle_today() - 1, true, 2, %L)',
+  :'A', 'manual'));
 select pg_temp.expect_error('B cannot submit a future puzzle', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, source) values (%L, %L, public.wordle_today() + 3, true, 2, %L)',
-  :'room', :'B', 'manual'));
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source) values (%L, public.wordle_today() + 3, true, 2, %L)',
+  :'B', 'manual'));
 select pg_temp.expect_error('solved without guesses is rejected', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, source) values (%L, %L, public.wordle_today() - 1, true, null, %L)',
-  :'room', :'B', 'manual'));
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source) values (%L, public.wordle_today() - 1, true, null, %L)',
+  :'B', 'manual'));
 select pg_temp.expect_error('bad grid is rejected', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, source) values (%L, %L, public.wordle_today() - 1, true, 1, %L, %L)',
-  :'room', :'B', '{GGGGX}', 'manual'));
-insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, answer, verified, source)
-  values (:'room', :'B', public.wordle_today() - 2, true, 2, array['BYBBB', 'GGGGG'], array['CRANE', 'STREW'], 'STREW', true, 'screenshot');
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, grid, source) values (%L, public.wordle_today() - 1, true, 1, %L, %L)',
+  :'B', '{GGGGX}', 'manual'));
+insert into public.wordle_results (user_id, puzzle_no, solved, guesses, grid, words, answer, verified, source)
+  values (:'B', public.wordle_today() - 2, true, 2, array['BYBBB', 'GGGGG'], array['CRANE', 'STREW'], 'STREW', true, 'screenshot');
 select pg_temp.check('words and answer save', (select words = array['CRANE', 'STREW'] and verified
   from public.wordle_results where user_id = :'B' and puzzle_no = public.wordle_today() - 2));
 select pg_temp.expect_error('word count must match rows', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, answer, source) values (%L, %L, public.wordle_today() - 3, true, 2, %L, %L, %L, %L)',
-  :'room', :'B', '{BYBBB,GGGGG}', '{STREW}', 'STREW', 'screenshot'));
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, grid, words, answer, source) values (%L, public.wordle_today() - 3, true, 2, %L, %L, %L, %L)',
+  :'B', '{BYBBB,GGGGG}', '{STREW}', 'STREW', 'screenshot'));
 select pg_temp.expect_error('lowercase or short words are rejected', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, source) values (%L, %L, public.wordle_today() - 3, true, 1, %L, %L, %L)',
-  :'room', :'B', '{GGGGG}', '{stre}', 'screenshot'));
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, grid, words, source) values (%L, public.wordle_today() - 3, true, 1, %L, %L, %L)',
+  :'B', '{GGGGG}', '{stre}', 'screenshot'));
 select pg_temp.expect_error('solved board must end on the answer', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, words, answer, source) values (%L, %L, public.wordle_today() - 3, true, 1, %L, %L, %L, %L)',
-  :'room', :'B', '{GGGGG}', '{CRANE}', 'STREW', 'screenshot'));
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, grid, words, answer, source) values (%L, public.wordle_today() - 3, true, 1, %L, %L, %L, %L)',
+  :'B', '{GGGGG}', '{CRANE}', 'STREW', 'screenshot'));
 select pg_temp.expect_error('verified needs an answer', format(
-  'insert into public.wordle_results (room_id, user_id, puzzle_no, solved, guesses, grid, verified, source) values (%L, %L, public.wordle_today() - 3, true, 1, %L, true, %L)',
-  :'room', :'B', '{GGGGG}', 'screenshot'));
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, grid, verified, source) values (%L, public.wordle_today() - 3, true, 1, %L, true, %L)',
+  :'B', '{GGGGG}', 'screenshot'));
 select pg_temp.expect_error('B cannot change own slot', 'update public.wordle_members set slot = 5 where user_id = auth.uid()');
 select pg_temp.expect_error('B cannot move self to another room', format(
   'update public.wordle_members set room_id = gen_random_uuid() where user_id = %L', :'B'));
@@ -118,7 +117,7 @@ select pg_temp.check('A sees the couple room', (select kind = 'couple' from publ
 select pg_temp.expect_error('A cannot start a second couple', format('select public.wordle_create_room(%L, %L, %L, %L)', 'Two', 'Aryan', '🐻', 'couple'));
 select invite_code as code2, id as room2 from public.wordle_create_room('Friends', 'Aryan', '🐻') \gset
 set request.jwt.claim.sub = :'C';
-select pg_temp.check('C preview shows a duo invite', (select room_kind = 'duo' from public.wordle_room_preview(:'code2')));
+select pg_temp.check('C preview shows a group invite', (select room_kind = 'group' and member_count = 1 and max_members = 10 from public.wordle_room_preview(:'code2')));
 select pg_temp.check('C joins the friends room', (select public.wordle_join_room(:'code2', 'Cleo', '🦊') = :'room2'::uuid));
 select pg_temp.check('C has access after joining', (select public.site_has_access()));
 select pg_temp.expect_error('C cannot make A''s friends room a couple', format('select public.wordle_set_couple(%L, true)', :'room2'));
@@ -126,11 +125,11 @@ select invite_code as code3 from public.wordle_create_room('Cleo+?', 'Cleo', '�
 set request.jwt.claim.sub = :'A';
 select pg_temp.expect_error('A cannot join someone else''s couple room', format('select public.wordle_join_room(%L, %L, %L)', :'code3', 'Aryan', '🐻'));
 select pg_temp.expect_error('outsiders cannot change a couple', format('select public.wordle_set_couple(%L, false)', (select room_id from public.wordle_room_preview(:'code3'))));
-select pg_temp.check('A can turn the couple off', (select kind = 'duo' and since is null from public.wordle_set_couple(:'room', false)));
-select pg_temp.check('and back on', (select kind = 'couple' from public.wordle_set_couple(:'room', true)));
+select pg_temp.check('A can turn the couple off', (select kind = 'group' and since is null and max_members = 10 from public.wordle_set_couple(:'room', false)));
+select pg_temp.check('and back on', (select kind = 'couple' and max_members = 2 from public.wordle_set_couple(:'room', true)));
 select pg_temp.expect_error('in_couple is not callable by players', format('select public.wordle_in_couple(%L)', :'A'));
 
--- Drinks: you and your partner only (A and B are a couple; C shares only a duo room with A)
+-- Drinks: you and your partner only (A and B are a couple; C shares only a group with A)
 insert into public.drinks (day, kind, ml, abv, qty) values (current_date, 'beer', 330, 5, 2) returning id as drink \gset
 set request.jwt.claim.sub = :'B';
 select pg_temp.check('partner sees the drink', (select count(*) = 1 from public.drinks where user_id = :'A'));
@@ -159,6 +158,52 @@ select pg_temp.check('partner sees the goal', (select weekly_shots = 10 from pub
 select public.wordle_set_couple(:'room', false);
 select pg_temp.check('after unpairing the drinks are private again', (select count(*) = 0 from public.drinks where user_id = :'A'));
 select public.wordle_set_couple(:'room', true);
+set request.jwt.claim.sub = :'A';
+
+-- Groups: a result belongs to the person and shows in every room you share with them
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('a group sees A''s old result', (select count(*) = 1 from public.wordle_results where user_id = :'A' and puzzle_no = public.wordle_today() - 5));
+select pg_temp.check('but not today''s until C plays', (select count(*) = 0 from public.wordle_results where user_id = :'A' and puzzle_no = public.wordle_today()));
+select pg_temp.check('and nothing of B, who shares no room with C', (select count(*) = 0 from public.wordle_results where user_id = :'B'));
+insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source) values (:'C', public.wordle_today(), true, 4, 'manual');
+select pg_temp.check('one play unlocks today in the group', (select count(*) = 1 from public.wordle_results where user_id = :'A' and puzzle_no = public.wordle_today()));
+select pg_temp.expect_error('one result per person per day', format(
+  'insert into public.wordle_results (user_id, puzzle_no, solved, guesses, source) values (%L, public.wordle_today(), true, 2, %L)', :'C', 'manual'));
+select pg_temp.check('a room lists only its own people''s plays', (select count(distinct user_id) = 2 from public.wordle_submissions(:'room2', public.wordle_today() - 10)));
+set request.jwt.claim.sub = :'B';
+select pg_temp.check('the couple room does not list C', (select count(*) = 0 from public.wordle_submissions(:'room', 0) where user_id = :'C'));
+
+-- Groups hold 10 (A and C are in Friends; eight more fill it)
+reset role;
+insert into auth.users select ('00000000-0000-0000-0000-0000000001' || lpad(n::text, 2, '0'))::uuid from generate_series(1, 9) n;
+set role authenticated;
+select set_config('test.code2', :'code2', false);
+do $$ begin
+  for n in 1..8 loop
+    perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000001' || lpad(n::text, 2, '0'), false);
+    perform public.wordle_join_room(current_setting('test.code2'), 'P' || n, '🐸');
+  end loop;
+end $$;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000109';
+select pg_temp.check('a group holds 10', (select is_full and member_count = 10 from public.wordle_room_preview(:'code2')));
+select pg_temp.expect_error('the 11th person is turned away', format('select public.wordle_join_room(%L, %L, %L)', :'code2', 'P9', '🐸'));
+
+-- Only the creator removes people; a leaving creator hands over
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000101';
+select pg_temp.expect_error('members cannot remove each other', format('select public.wordle_remove_member(%L, %L)', :'room2', '00000000-0000-0000-0000-000000000102'));
+select pg_temp.expect_error('a big group cannot become a couple', format('select public.wordle_set_couple(%L, true)', :'room2'));
+set request.jwt.claim.sub = :'A';
+select public.wordle_remove_member(:'room2', :'C');
+select pg_temp.check('the creator removes someone', (select count(*) = 9 from public.wordle_members where room_id = :'room2'));
+select pg_temp.expect_error('nobody is removed from a couple', format('select public.wordle_remove_member(%L, %L)', :'room', :'B'));
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('a removed member loses the group', (select count(*) = 0 from public.wordle_rooms where id = :'room2'));
+select pg_temp.check('and sight of its people''s results', (select count(*) = 0 from public.wordle_results where user_id = :'A'));
+set request.jwt.claim.sub = :'A';
+delete from public.wordle_members where room_id = :'room2' and user_id = :'A';
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000101';
+select pg_temp.check('a leaving creator hands the group on', (select created_by = auth.uid() from public.wordle_rooms where id = :'room2'));
+select pg_temp.expect_error('the trigger is not callable', 'select public.wordle_after_leave()');
 set request.jwt.claim.sub = :'A';
 
 -- Shared tables

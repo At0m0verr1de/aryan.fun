@@ -3,6 +3,7 @@
 import { isConfigured, currentUser, onUserChange, signInWithGoogle, signOut, fullName } from './supabase.js';
 import { loadSpace, setMode, emojiOf } from './space.js';
 import { track, reportError, setUser, flush, isNewSession } from './telemetry.js';
+import { renderGroups } from './group-switch.js';
 
 const FRESH_MS = 5 * 60 * 1000; // created/signed-in this recently means it happened on this page load
 
@@ -14,17 +15,17 @@ let reported = false;
 
 function render(user) {
   root.dataset.state = user ? 'in' : 'out';
-  if (!user) return;
+  if (!user) { renderGroups(null, null); return; }
   const name = fullName(user);
   root.querySelector('[data-name]').textContent = name;
   root.querySelector('[data-email]').textContent = user.email ?? '';
   root.querySelector('[data-initial]').textContent = name.charAt(0).toUpperCase();
-  loadSpace(user).then(renderSpace).catch((err) => reportError(err, 'header-space'));
+  loadSpace(user).then((space) => { renderSpace(space, user); renderGroups(space, user); }).catch((err) => reportError(err, 'header-space'));
 }
 
 // Emoji avatar, couple wordmark, and the (hidden unless you have a partner) mode switch.
-function renderSpace(space) {
-  const me = space.couple?.me;
+function renderSpace(space, user) {
+  const me = space.couple?.me ?? space.groups.flatMap((g) => g.members).find((m) => m.user_id === user.id);
   if (me) {
     root.querySelector('[data-initial]').textContent = emojiOf(me);
     toggle.classList.add('emoji');

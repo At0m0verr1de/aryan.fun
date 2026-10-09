@@ -11,6 +11,7 @@ export const EVENTS = new Set([
   'wordle_screenshot_unreadable', 'wordle_invite_shared', 'wordle_screenshot_rejected', 'wordle_words_read',
   'wordle_answer_unavailable', 'mode_switched', 'couple_set', 'access_denied',
   'drink_logged', 'drink_deleted', 'drink_note_saved', 'drink_goal_set',
+  'group_switched', 'group_member_removed', 'wordle_board_opened',
 ]);
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_EVENTS = 25;
