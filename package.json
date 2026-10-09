@@ -1,0 +1,15 @@
+{
+  "name": "madebyaryan",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "node --test \"src/**/*.test.js\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "astro": "^7.3.8"
+  }
+}

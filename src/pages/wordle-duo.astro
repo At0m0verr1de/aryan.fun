@@ -1,0 +1,234 @@
+---
+import Layout from '../shared/Layout.astro';
+import { meta } from '../toys/wordle-duo/meta';
+---
+<Layout title={meta.title} description={meta.blurb} emoji={meta.emoji} back>
+  <div id="gate"></div>
+
+  <div id="room-view" hidden>
+    <header class="wd-head">
+      <div class="brand">
+        <h1>Wordle Duo <span class="heart">💕</span></h1>
+        <p class="vs" id="vs"></p>
+        <p class="room-name" id="room-name"></p>
+      </div>
+      <button class="icon-btn" data-action="settings" title="Settings">⚙️</button>
+    </header>
+
+    <section style="margin-top:0">
+      <div class="daybar">
+        <button class="nav" data-action="prev" aria-label="Previous day">‹</button>
+        <div class="when"><div class="d" id="dayLabel"></div><div class="n" id="puzzleLabel"></div></div>
+        <button class="nav" data-action="next" id="nextBtn" aria-label="Next day">›</button>
+      </div>
+      <div class="duo" id="duo"></div>
+      <div id="matchup"></div>
+    </section>
+
+    <section>
+      <h2>🏆 Scoreboard</h2>
+      <div class="card" id="h2h"></div>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section>
+      <h2>🗓️ Last 12 weeks</h2>
+      <div class="card"><div class="cal-wrap"><div class="cal" id="cal"></div></div><div class="legend" id="legend"></div></div>
+    </section>
+
+    <section>
+      <h2>📜 History</h2>
+      <div class="hist" id="hist"></div>
+    </section>
+
+    <footer class="wd-foot">Screenshots are read in your browser and never uploaded. Your account lives on this device.</footer>
+  </div>
+
+  <dialog id="settings">
+    <h3>Settings ✨</h3>
+    <label class="lbl">You</label>
+    <div class="field"><input class="field-input emoji" id="set-emoji" maxlength="8"><input class="field-input" id="set-name" maxlength="24"></div>
+    <label class="lbl">Room name</label>
+    <input class="field-input" id="set-room" maxlength="40">
+    <label class="lbl">Invite link</label>
+    <div class="invite-row"><code id="set-invite"></code><button class="btn ghost" data-action="copy-invite">Copy</button></div>
+    <div class="dlg-actions">
+      <div class="row-btns">
+        <button class="btn ghost" data-action="export">Export</button>
+        <button class="btn ghost" data-action="switch-room">Switch room</button>
+        <button class="btn ghost" data-action="sign-out">Sign out</button>
+        <button class="btn ghost" data-action="leave-room" style="color:var(--danger)">Leave</button>
+      </div>
+      <div class="row-btns">
+        <button class="btn ghost" data-action="close-settings">Cancel</button>
+        <button class="btn" data-action="save-settings">Save</button>
+      </div>
+    </div>
+  </dialog>
+  <div class="toast" id="toast"></div>
+</Layout>
+
+<script>
+  import '../toys/wordle-duo/app.js';
+</script>
+
+<style is:global>
+  :root { --p1: var(--blue); --p2: var(--pink); --tie: var(--lilac); --g: #6aaa64; --y: #c9b458; --b: #3a3a3c; }
+  .muted { color: var(--muted); }
+  .center { text-align: center; }
+  .narrow { max-width: 440px; margin: 0 auto; }
+
+  /* onboarding */
+  .gate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .gate-grid .span { grid-column: 1 / -1; }
+  @media (max-width: 680px) { .gate-grid { grid-template-columns: 1fr; } }
+  #gate form, #gate .card { display: flex; flex-direction: column; gap: 10px; }
+  #gate h2 { margin: 0; }
+  #gate p { margin: 0; }
+  #gate label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: .9rem; text-align: left; }
+  .room-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .emoji-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .emoji-chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; width: 40px; height: 40px; font-size: 1.2rem; cursor: pointer; }
+  .emoji-chip.on { border-color: var(--pink); background: color-mix(in srgb, var(--pink) 20%, transparent); }
+  .field-input.code { text-transform: uppercase; letter-spacing: 4px; font-weight: 800; text-align: center; font-size: 1.3rem; }
+
+  /* header */
+  .wd-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+  .brand h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.3rem); }
+  .brand .heart { display: inline-block; animation: beat 1.8s ease-in-out infinite; }
+  .brand p { margin: 2px 0 0; }
+  .vs { font-weight: 800; }
+  .vs .a { color: var(--p1); } .vs .b { color: var(--p2); }
+  .room-name { color: var(--faint); font-size: .85rem; }
+  .icon-btn { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; cursor: pointer; font-size: 1.1rem; }
+  .icon-btn:hover { border-color: var(--tie); }
+  @keyframes beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.18); } 30% { transform: scale(1); } }
+
+  section { margin-top: 30px; }
+  section > h2 { font-size: 1.25rem; margin: 0 0 12px; }
+
+  .daybar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .daybar .when { text-align: center; }
+  .daybar .when .d { font-family: Fredoka; font-size: 1.3rem; font-weight: 600; }
+  .daybar .when .n { color: var(--muted); font-size: .9rem; }
+  .nav { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; width: 42px; height: 42px; cursor: pointer; font-size: 1.2rem; }
+  .nav:disabled { opacity: .3; cursor: default; }
+
+  /* player cards */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 680px) { .duo { grid-template-columns: 1fr; } }
+  .player { position: relative; border-top: 4px solid var(--pc); min-height: 300px; display: flex; flex-direction: column; }
+  .phead { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.3rem;
+    background: color-mix(in srgb, var(--pc) 22%, transparent); border: 2px solid var(--pc); }
+  .pname { font-family: Fredoka; font-weight: 600; font-size: 1.15rem; }
+  .you { font-family: Nunito; font-size: .7rem; font-weight: 800; text-transform: uppercase; color: var(--pc); margin-left: 4px; }
+  .crown { margin-left: auto; font-size: 1.5rem; animation: bob 2s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-3px) rotate(-6deg); } }
+
+  .drop { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
+    border: 2px dashed color-mix(in srgb, var(--pc) 55%, var(--line)); border-radius: 16px; padding: 22px 14px; cursor: pointer;
+    background: color-mix(in srgb, var(--pc) 6%, transparent); transition: .15s; }
+  .drop:hover, .drop.over { background: color-mix(in srgb, var(--pc) 14%, transparent); transform: translateY(-1px); }
+  .drop .big { font-size: 2rem; } .drop .t { font-weight: 800; } .drop .s { color: var(--muted); font-size: .85rem; }
+  .drop input { display: none; }
+  .alts { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .alts details summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+  .alts textarea { width: 100%; min-height: 96px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); padding: 10px; resize: vertical; }
+  .quick { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: .9rem; }
+  .chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; min-width: 34px; padding: 5px 8px; cursor: pointer; font-weight: 800; }
+  .chip:hover { border-color: var(--pc); }
+  .note { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--danger) 12%, transparent); color: #ffd0d6; font-size: .88rem; }
+  .note.info { background: var(--surface-2); color: var(--muted); }
+
+  .result { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  .score { font-family: Fredoka; font-size: 2.4rem; font-weight: 700; line-height: 1; }
+  .score small { font-size: 1rem; color: var(--muted); font-weight: 500; }
+  .meta-row { display: flex; gap: 12px; align-items: center; color: var(--faint); font-size: .82rem; }
+
+  .sealed { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 14px;
+    border-radius: 16px; background: repeating-linear-gradient(45deg, var(--surface-2) 0 12px, var(--surface) 12px 24px); }
+  .sealed.idle { background: var(--surface-2); }
+  .sealed .env { font-size: 2.6rem; animation: bob 2.4s ease-in-out infinite; }
+  .sealed small { color: var(--muted); }
+  .invite { font-size: 1.4rem; letter-spacing: 4px; font-weight: 800; color: var(--pc); }
+
+  /* mini wordle grids */
+  .grid { display: grid; gap: var(--gap, 4px); }
+  .grid .row { display: grid; grid-template-columns: repeat(5, var(--t, 26px)); gap: var(--gap, 4px); }
+  .grid .t { width: var(--t, 26px); height: var(--t, 26px); border-radius: var(--tr, 6px); background: var(--b); }
+  .grid .G { background: var(--g); } .grid .Y { background: var(--y); }
+  .grid.sm { --t: 11px; --gap: 2px; --tr: 3px; }
+
+  /* matchup */
+  .matchup { margin-top: 14px; text-align: center; padding: 16px; border-radius: var(--radius); position: relative; overflow: hidden;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--p1) 16%, var(--surface)), color-mix(in srgb, var(--p2) 16%, var(--surface)));
+    border: 1px solid var(--line); }
+  .matchup .headline { font-family: Fredoka; font-size: 1.4rem; font-weight: 700; }
+  .matchup .sub { color: var(--muted); font-size: .92rem; }
+  .matchup.waiting { background: var(--surface); }
+  .pop { animation: pop .5s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes pop { 0% { transform: scale(.85); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .burst { position: absolute; bottom: 0; font-size: 1.2rem; pointer-events: none; animation: floatup 1.6s ease-out forwards; }
+  @keyframes floatup { to { transform: translateY(-140px) rotate(25deg); opacity: 0; } }
+
+  /* scoreboard */
+  .h2h { display: flex; align-items: center; gap: 14px; }
+  .h2h .side { flex: 0 0 auto; text-align: center; min-width: 70px; }
+  .h2h .num { font-family: Fredoka; font-size: 2.4rem; font-weight: 700; line-height: 1; }
+  .h2h .lbl { color: var(--muted); font-size: .85rem; }
+  .bar { flex: 1; height: 16px; border-radius: 999px; overflow: hidden; display: flex; background: var(--surface-2); }
+  .bar span { display: block; height: 100%; }
+  .week { margin-top: 14px; color: var(--muted); font-size: .95rem; text-align: center; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  @media (max-width: 680px) { .stats { grid-template-columns: 1fr; } }
+  .stat-card { border-top: 4px solid var(--pc); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0 14px; }
+  .kpi { background: var(--surface-2); border-radius: 12px; padding: 10px 6px; text-align: center; }
+  .kpi .v { font-family: Fredoka; font-size: 1.35rem; font-weight: 700; }
+  .kpi .l { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .5px; }
+  .dist { display: grid; gap: 5px; }
+  .dist .r { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: center; font-size: .85rem; font-weight: 800; }
+  .dist .fill { height: 20px; border-radius: 6px; min-width: 24px; padding: 0 8px; display: flex; align-items: center; justify-content: flex-end;
+    background: color-mix(in srgb, var(--pc) 70%, transparent); color: #1a1424; font-size: .78rem; }
+  .dist .fill.zero { background: var(--surface-2); color: var(--muted); }
+
+  /* calendar */
+  .cal-wrap { overflow-x: auto; }
+  .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 18px); gap: 4px; width: max-content; }
+  .cal .c { width: 18px; height: 18px; border-radius: 5px; background: var(--surface-2); cursor: pointer; border: none; padding: 0; }
+  .cal .c.p1 { background: var(--p1); } .cal .c.p2 { background: var(--p2); }
+  .cal .c.tie { background: linear-gradient(135deg, var(--p1) 50%, var(--p2) 50%); }
+  .cal .c.half { background: transparent; border: 2px solid var(--faint); }
+  .cal .c.future { visibility: hidden; }
+  .cal .c.sel { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: .82rem; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+  /* history */
+  .hist { display: grid; gap: 8px; }
+  .hrow { display: grid; grid-template-columns: 110px 1fr auto 1fr; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line); cursor: pointer; text-align: left; }
+  .hrow:hover { border-color: var(--tie); }
+  .hrow .date { font-weight: 800; font-size: .92rem; }
+  .hrow .date small { display: block; color: var(--muted); font-weight: 600; }
+  .hrow .who { display: flex; align-items: center; gap: 10px; }
+  .hrow .who.right { justify-content: flex-end; }
+  .hrow .sc { font-family: Fredoka; font-weight: 700; font-size: 1.1rem; }
+  .hrow .sc.win { color: var(--gold); }
+  .hrow .mid { font-size: 1.2rem; text-align: center; min-width: 28px; }
+  @media (max-width: 560px) { .hrow { grid-template-columns: 1fr auto 1fr; } .hrow .date { grid-column: 1 / -1; } .hrow .grid { display: none; } }
+
+  /* settings */
+  dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); padding: 22px; width: min(460px, calc(100% - 32px)); }
+  dialog::backdrop { background: rgba(8, 6, 14, .7); }
+  dialog h3 { margin: 0 0 10px; }
+  dialog .lbl { display: block; margin: 12px 0 6px; color: var(--muted); font-size: .82rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
+  .field { display: grid; grid-template-columns: 64px 1fr; gap: 8px; }
+  .field-input.emoji { text-align: center; font-size: 1.2rem; }
+  .invite-row { display: flex; gap: 8px; align-items: center; }
+  .invite-row code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; font-size: .82rem; }
+  .dlg-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; margin-top: 18px; }
+  .row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .wd-foot { margin-top: 40px; color: var(--faint); font-size: .82rem; text-align: center; }
+</style>

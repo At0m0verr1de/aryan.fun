@@ -1,0 +1,32 @@
+/* Site-wide tokens. Toys reuse these so everything feels like one place. */
+:root {
+  --bg: #14111b; --surface: #1f1a2a; --surface-2: #2a2338; --line: #3a3150;
+  --text: #f4effc; --muted: #a69cbc; --faint: #6f6688;
+  --pink: #ff8fc4; --blue: #7cc4ff; --gold: #ffd36e; --lilac: #c7a7ff; --mint: #8ff0c4; --danger: #ff7a8a;
+  --radius: 20px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; color: var(--text);
+  font: 16px/1.5 Nunito, system-ui, sans-serif;
+  background:
+    radial-gradient(900px 500px at 10% -10%, rgba(255, 143, 196, .13), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgba(124, 196, 255, .12), transparent 60%),
+    var(--bg);
+}
+button, input, textarea { font: inherit; color: inherit; }
+a { color: var(--lilac); }
+h1, h2, h3, .display { font-family: Fredoka, Nunito, sans-serif; letter-spacing: .2px; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 28px 16px 64px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+.btn { border: none; border-radius: 12px; padding: 9px 14px; font-weight: 800; cursor: pointer; background: var(--pc, var(--lilac)); color: #1a1424; }
+.btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
+.btn:disabled { opacity: .5; cursor: default; }
+.link-btn { background: none; border: none; color: var(--lilac); cursor: pointer; font-weight: 700; padding: 0; }
+.field-input { border-radius: 12px; border: 1px solid var(--line); background: var(--bg); padding: 9px 11px; width: 100%; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .25s;
+  background: var(--surface-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 999px; font-weight: 700; z-index: 10; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; transform: translateX(-50%); }
+.back { display: inline-block; margin-bottom: 14px; color: var(--muted); text-decoration: none; font-weight: 700; }
+.back:hover { color: var(--text); }
