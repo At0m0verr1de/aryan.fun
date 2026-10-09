@@ -18,10 +18,13 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
 // Couple home: the daily game is the wide tile on top, the rest follow newest first.
 const HERO = 'wordle-duo';
 const coupleToys = [...toys].sort((a, b) => Number(b.slug === HERO) - Number(a.slug === HERO));
-// Tile drawings: a solved mini board, slips in a jar, a drink with a straw.
+// Tile drawings: a solved mini board, slips in a jar, a drink with a straw, two pawns.
 const BOARD = ['BYBBB', 'YBGBY', 'GGGGG'];
 const SLIPS = [[16, 72, -18, 'p'], [32, 76, 12, 'g'], [48, 70, -6, 'b'], [22, 60, 24, 'g'], [42, 58, -20, 'p'], [32, 47, 8, 'b'], [50, 82, -10, 'g'], [14, 84, 6, 'b']];
 const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
+// Two pawns facing off on a corner of a board.
+const SQUARES = Array.from({ length: 12 }, (_, i) => [8 + (i % 4) * 16, 54 + Math.floor(i / 4) * 16, (i % 4 + Math.floor(i / 4)) % 2]);
+const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 3 3v5h-28v-5a3 3 0 0 1 3-3h3z`;
 ---
 <Layout title="made by aryan">
   <!-- One page, five views. Everyone starts at the door; the database decides who gets further. -->
@@ -107,6 +110,14 @@ const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
                 <circle class="lemon" cx="20" cy="22" r="9" />
               </svg>
             )}
+            {t.slug === 'chess-mates' && (
+              <svg class="tile-art tile-art-chess" viewBox="0 0 80 102" aria-hidden="true">
+                {SQUARES.map(([x, y, dark]) => <rect class={dark ? 'csq d' : 'csq'} x={x} y={y} width="16" height="16" />)}
+                <g class="pawn pawn-w"><path d={PAWN(24, 62)} /><circle cx="24" cy="35" r="7" /></g>
+                <g class="pawn pawn-b"><path d={PAWN(56, 62)} /><circle cx="56" cy="35" r="7" /></g>
+                <path class="chess-heart" d="M40 22c-2-4-8-3-8 1 0 4 8 8 8 8s8-4 8-8c0-4-6-5-8-1z" />
+              </svg>
+            )}
           </a>
         ))}
       </div>
@@ -178,6 +189,7 @@ const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
   import { GROUP_EVENT } from '../shared/space.js';
   import { drinksHomeData } from '../toys/drinks/summary.js';
   import { jarHomeData } from '../toys/date-jar/summary.js';
+  import { chessHomeData } from '../toys/chess-mates/summary.js';
   import { dateStr } from '../toys/drinks/stats.js';
   import { togetherLabel } from '../shared/together.js';
 
@@ -223,6 +235,9 @@ const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
     jarHomeData(space, supabase)
       .then((line) => set('[data-status="date-jar"]', line))
       .catch((err) => reportError(err, 'couple-home-jar'));
+    chessHomeData(space, supabase)
+      .then((line) => set('[data-status="chess-mates"]', line))
+      .catch((err) => reportError(err, 'couple-home-chess'));
     try {
       const data = await coupleHomeData(space, supabase);
       set('[data-status="wordle-duo"]', data.today);
@@ -392,7 +407,7 @@ const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
   .edit-since { color: var(--muted); font-weight: 600; font-size: 1rem; }
   .edit-since:hover { color: var(--text); }
 
-  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
   .tile { position: relative; display: flex; gap: 12px; padding: 20px; border-radius: var(--radius); color: inherit; text-decoration: none; min-height: 170px; overflow: hidden;
     background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface) 70%);
     outline: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); transition: transform .2s, box-shadow .2s;
@@ -446,7 +461,19 @@ const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
   @keyframes bubble-up { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-36px); opacity: 0; } }
   .straw { stroke: var(--heart); stroke-width: 4.5; stroke-linecap: round; }
   .lemon { fill: #ffe27a; stroke: #f5c400; stroke-width: 2.5; }
+  .csq { fill: #f7e9ef; } .csq.d { fill: #c98da9; }
+  .pawn { transform-box: fill-box; transition: transform .35s cubic-bezier(.2, 1.4, .4, 1); }
+  .pawn-w { fill: #fffaf3; stroke: #3a2530; stroke-width: 2; transform-origin: bottom right; }
+  .pawn-b { fill: #2b1a24; stroke: color-mix(in srgb, var(--text) 45%, transparent); stroke-width: 2; transform-origin: bottom left; }
+  a.tile:hover .pawn-w { transform: rotate(9deg); }
+  a.tile:hover .pawn-b { transform: rotate(-9deg); }
+  a.tile:hover .tile-art-chess { transform: none; }
+  .chess-heart { fill: var(--heart); transform-box: fill-box; transform-origin: center; animation: heartbeat 1.6s ease-in-out infinite; }
 
+  @media (max-width: 900px) {
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tile:not(.tile-wide):last-child:nth-child(even) { grid-column: 1 / -1; }
+  }
   @media (max-width: 640px) {
     .tiles { grid-template-columns: 1fr; }
     .tile { min-height: 140px; }
@@ -455,7 +482,7 @@ const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
     .tile-art-wordle { width: 108px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .tile, .wt, .wave, .bubble, .turn::before, a.tile:hover .slips { animation: none; }
+    .tile, .wt, .wave, .bubble, .turn::before, a.tile:hover .slips, .chess-heart { animation: none; }
   }
 
   /* group home */

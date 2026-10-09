@@ -18,6 +18,35 @@ exception when others then
   raise notice 'PASS % (%)', label, sqlerrm;
 end $$;
 
+-- Chess: no http extension here, so chess.com is a table of canned answers (url → status, etag, body).
+create table public.test_chess (url text primary key, status int not null, etag text, body jsonb);
+create or replace function public.chess_get(p_url text, p_etag text, out status integer, out etag text, out body jsonb)
+language plpgsql security definer set search_path = '' as $$
+begin
+  select t.status, t.etag, t.body into status, etag, body from public.test_chess t where t.url = p_url;
+  if not found then status := 404; etag := null; body := null; return; end if;
+  if p_etag is not null and p_etag = etag then status := 304; body := null; end if;
+end $$;
+create function pg_temp.game(id text, w text, wres text, b text, bres text, ended text, rules text default 'chess') returns jsonb language sql as $$
+  select jsonb_build_object('uuid', id, 'url', 'https://www.chess.com/game/live/' || id, 'end_time', extract(epoch from ended::timestamptz)::bigint,
+    'time_class', 'blitz', 'rated', true, 'rules', rules, 'fen', '8/8/8/8/8/8/8/8 w - - 0 31',
+    'eco', 'https://www.chess.com/openings/Italian-Game-Two-Knights-Defense-4.d3', 'accuracies', jsonb_build_object('white', 81.5, 'black', 74.2),
+    'white', jsonb_build_object('username', w, 'result', wres, 'rating', 900), 'black', jsonb_build_object('username', b, 'result', bres, 'rating', 950)) $$;
+select to_char(now() at time zone 'utc', 'YYYY/MM') as chess_month \gset
+insert into public.test_chess values
+  ('https://api.chess.com/pub/player/aryan_b/games/archives', 200, null, jsonb_build_object('archives', jsonb_build_array(
+    'https://api.chess.com/pub/player/aryan_b/games/2026/07', 'https://api.chess.com/pub/player/aryan_b/games/2026/08',
+    'https://api.chess.com/pub/player/aryan_b/games/' || :'chess_month'))),
+  ('https://api.chess.com/pub/player/rupa/games/archives', 200, null, jsonb_build_object('archives', jsonb_build_array(
+    'https://api.chess.com/pub/player/rupa/games/2026/08', 'https://api.chess.com/pub/player/rupa/games/' || :'chess_month'))),
+  ('https://api.chess.com/pub/player/aryan_b/games/' || :'chess_month', 200, 'e1', jsonb_build_object('games', jsonb_build_array(
+    pg_temp.game('g1', 'Aryan_B', 'win', 'Rupa', 'checkmated', '2026-10-02 20:00Z'),
+    pg_temp.game('g2', 'rupa', 'repetition', 'aryan_b', 'repetition', '2026-10-03 20:00Z'),
+    pg_temp.game('g3', 'aryan_b', 'win', 'stranger', 'resigned', '2026-10-04 20:00Z'),
+    pg_temp.game('g4', 'aryan_b', 'win', 'rupa', 'resigned', '2026-10-05 20:00Z', 'chess960')))),
+  ('https://api.chess.com/pub/player/aryan_b/games/2026/08', 200, null, jsonb_build_object('games', jsonb_build_array(
+    pg_temp.game('g5', 'rupa', 'win', 'aryan_b', 'resigned', '2026-08-20 20:00Z'))));
+
 set role authenticated;
 
 -- Invite-only: C has no invite and isn't on the allowlist
@@ -179,6 +208,38 @@ select public.wordle_set_couple(:'room', false);
 select pg_temp.check('after unpairing the drinks are private again', (select count(*) = 0 from public.drinks where user_id = :'A'));
 select public.wordle_set_couple(:'room', true);
 set request.jwt.claim.sub = :'A';
+
+-- Chess: games come only from chess.com via the database; only the couple sees them
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('no usernames yet', (select jsonb_array_length(public.chess_state() -> 'names') = 0));
+select pg_temp.expect_error('junk usernames are refused', 'select public.chess_set_names(''no spaces!'', ''rupa'')');
+select pg_temp.expect_error('two of the same are refused', 'select public.chess_set_names(''rupa'', ''RUPA'')');
+select pg_temp.check('usernames save, lowercased', (select public.chess_set_names(' Aryan_B ', 'Rupa') -> 'names' @> '[{"username": "aryan_b"}, {"username": "rupa"}]'));
+select public.chess_sync() as chess \gset
+select pg_temp.check('first sync reads this month: our two games, not the stranger or the variant', (select jsonb_array_length(:'chess'::jsonb -> 'games') = 2));
+select pg_temp.check('a month you both played is left to catch up on', (select (:'chess'::jsonb -> 'sync' ->> 'backlog')::int = 1));
+select pg_temp.check('checkmate: winner and how', (select exists (select 1 from jsonb_array_elements(:'chess'::jsonb -> 'games') g
+  where g ->> 'id' = 'g1' and g ->> 'winner' = :'A' and g ->> 'how' = 'checkmated' and g ->> 'white' = :'A' and (g ->> 'moves')::int = 31)));
+select pg_temp.check('a draw has no winner', (select exists (select 1 from jsonb_array_elements(:'chess'::jsonb -> 'games') g
+  where g ->> 'id' = 'g2' and g ->> 'winner' is null and g ->> 'how' = 'repetition')));
+select pg_temp.check('opening name is tidied', (select :'chess'::jsonb -> 'games' -> 0 ->> 'opening' = 'Italian Game Two Knights Defense'));
+select pg_temp.check('catching up skips the once-a-minute wait', (select jsonb_array_length(public.chess_sync() -> 'games') = 3));
+select pg_temp.check('nothing left to catch up on', (select (public.chess_state() -> 'sync' ->> 'backlog')::int = 0));
+select pg_temp.check('syncing again straight away is a no-op', (select jsonb_array_length(public.chess_sync() -> 'games') = 3));
+select pg_temp.expect_error('nobody reads the games table', 'select * from public.chess_games');
+select pg_temp.expect_error('nobody writes a game', format('insert into public.chess_games (room_id, id, url, ended_at, time_class, rated, white, black, how) values (public.jar_room(), %L, %L, now(), %L, true, %L, %L, %L)', 'fake', 'x', 'blitz', :'A', :'B', 'checkmated'));
+select pg_temp.expect_error('the chess.com fetcher is not callable', 'select public.chess_get(''https://example.com'', null)');
+select pg_temp.expect_error('nor is a raw sync of any room', 'select public.chess_sync_room(public.jar_room(), 9)');
+select pg_temp.expect_error('nor the background run', 'select public.chess_sync_all()');
+set request.jwt.claim.sub = :'B';
+select pg_temp.check('B sees the same games', (select jsonb_array_length(public.chess_state() -> 'games') = 3));
+set request.jwt.claim.sub = :'C';
+select pg_temp.check('a friend (alone in their own couple room) sees none of our chess', (select public.chess_state() -> 'games' = '[]'::jsonb and public.chess_state() -> 'names' = '[]'::jsonb));
+select pg_temp.expect_error('a friend cannot set usernames', 'select public.chess_set_names(''eve'', ''aryan_b'')');
+set request.jwt.claim.sub = :'A';
+select pg_temp.check('a wrong username is reported and the old history cleared', (select (public.chess_set_names('ghost_x', 'rupa') -> 'games') = '[]'::jsonb
+  and public.chess_sync() -> 'sync' ->> 'error' = 'chess.com has no player called ghost_x'));
+select public.chess_set_names('aryan_b', 'rupa');
 
 -- Date Jar: only the couple; partner's slips stay folded until drawn; one shared draw; one veto a week
 select public.jar_add('Pottery class', 3000, null, 'out', 'evening') as slip_a \gset
