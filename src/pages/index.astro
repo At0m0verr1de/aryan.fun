@@ -15,6 +15,13 @@ const publicToys = toys.filter((t) => !t.couple); // couple-only toys never show
 const isNew = (t: ToyMeta) => Date.now() - Date.parse(t.added) < NEW_FOR_DAYS * DAY_MS;
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
+// Couple home: the daily game is the wide tile on top, the rest follow newest first.
+const HERO = 'wordle-duo';
+const coupleToys = [...toys].sort((a, b) => Number(b.slug === HERO) - Number(a.slug === HERO));
+// Tile drawings: a solved mini board, slips in a jar, a drink with a straw.
+const BOARD = ['BYBBB', 'YBGBY', 'GGGGG'];
+const SLIPS = [[16, 72, -18, 'p'], [32, 76, 12, 'g'], [48, 70, -6, 'b'], [22, 60, 24, 'g'], [42, 58, -20, 'p'], [32, 47, 8, 'b'], [50, 82, -10, 'g'], [14, 84, 6, 'b']];
+const BUBBLES = [[30, 0], [44, 900], [36, 1600], [52, 2300]];
 ---
 <Layout title="made by aryan">
   <!-- One page, five views. Everyone starts at the door; the database decides who gets further. -->
@@ -56,17 +63,52 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
         </form>
       </div>
       <div class="tiles">
-        {toys.map((t) => (
-          <a class="tile" href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
-            <span class="tile-title">{t.title}</span>
-            <span class="tile-status" data-status={t.slug}>{t.blurb}</span>
-            <span class="tile-go">{t.couple ? 'Open' : 'Play'} <Fragment set:html={ARROW(16)} /></span>
+        {coupleToys.map((t) => (
+          <a class:list={['tile', { 'tile-wide': t.slug === HERO }]} href={`${base}${t.slug}/`} style={`--accent: var(--${t.accent})`}>
+            <div class="tile-body">
+              <span class="tile-title">{t.title}{t.slug === HERO && <span class="turn" data-turn hidden>your turn</span>}</span>
+              <span class="tile-status" data-status={t.slug}>{t.blurb}</span>
+              {t.slug === HERO && (
+                <span class="score" data-score hidden>
+                  <span class="score-month" data-score-month></span>
+                  <span class="score-row"><span data-score-me-emoji></span><b data-score-me></b><i>–</i><b data-score-partner></b><span data-score-partner-emoji></span></span>
+                  <span class="score-ties" data-score-ties></span>
+                </span>
+              )}
+              <span class="tile-go">{t.couple ? 'Open' : 'Play'} <Fragment set:html={ARROW(16)} /></span>
+            </div>
+            {t.slug === 'wordle-duo' && (
+              <svg class="tile-art tile-art-wordle" viewBox="0 0 146 86" aria-hidden="true">
+                {BOARD.map((row, r) => [...row].map((c, i) => (
+                  <rect class={`wt ${c}`} x={i * 30} y={r * 30} width="26" height="26" rx="5" style={`--d: ${(r * 5 + i) * 60}ms`} />
+                )))}
+              </svg>
+            )}
+            {t.slug === 'date-jar' && (
+              <svg class="tile-art tile-art-jar" viewBox="0 0 80 100" aria-hidden="true">
+                <defs><clipPath id="jar-clip"><path d="M22 18h36v6c8 4 12 10 12 20v40c0 8-6 13-14 13H24c-8 0-14-5-14-13V44c0-10 4-16 12-20z" /></clipPath></defs>
+                <path class="jar-glass" d="M22 18h36v6c8 4 12 10 12 20v40c0 8-6 13-14 13H24c-8 0-14-5-14-13V44c0-10 4-16 12-20z" />
+                <g class="slips" clip-path="url(#jar-clip)">
+                  {SLIPS.map(([x, y, a, c]) => <rect class={`slip ${c}`} x={x} y={y} width="17" height="9" rx="2" transform={`rotate(${a} ${x + 8} ${y + 4})`} />)}
+                </g>
+                <rect class="jar-lid" x="18" y="8" width="44" height="12" rx="4" />
+                <path class="jar-shine" d="M17 50v26" />
+              </svg>
+            )}
+            {t.slug === 'drinks' && (
+              <svg class="tile-art tile-art-drinks" viewBox="0 0 80 100" aria-hidden="true">
+                <defs><clipPath id="glass-clip"><path d="M14 22h52l-6 64c-.5 5-4 8-9 8H29c-5 0-8.5-3-9-8z" /></clipPath></defs>
+                <path class="straw" d="M54 4 44 70" />
+                <g clip-path="url(#glass-clip)">
+                  <path class="wave" d="M0 48q10-5 20 0t20 0 20 0 20 0 20 0 20 0V100H0z" />
+                  {BUBBLES.map(([x, d]) => <circle class="bubble" cx={x} cy="88" r="2.6" style={`--d: ${d}ms`} />)}
+                </g>
+                <path class="glass" d="M14 22h52l-6 64c-.5 5-4 8-9 8H29c-5 0-8.5-3-9-8z" />
+                <circle class="lemon" cx="20" cy="22" r="9" />
+              </svg>
+            )}
           </a>
         ))}
-        <div class="tile tally" data-tally hidden>
-          <span class="tile-title">This month</span>
-          <span class="tile-status" data-tally-text></span>
-        </div>
       </div>
     </section>
 
@@ -184,9 +226,18 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
     try {
       const data = await coupleHomeData(space, supabase);
       set('[data-status="wordle-duo"]', data.today);
-      if (data.tally) {
-        document.querySelector<HTMLElement>('[data-tally]')!.hidden = false;
-        set('[data-tally-text]', data.tally);
+      document.querySelector<HTMLElement>('[data-turn]')!.hidden = !['fresh', 'turn'].includes(data.state);
+      if (data.wins) {
+        const { me: mine, partner: theirs, tie } = data.wins;
+        set('[data-score-month]', new Date().toLocaleDateString(undefined, { month: 'long' }));
+        set('[data-score-me-emoji]', emojiOf(me));
+        set('[data-score-partner-emoji]', partner ? emojiOf(partner) : '');
+        set('[data-score-me]', String(mine));
+        set('[data-score-partner]', String(theirs));
+        document.querySelector('[data-score-me]')!.classList.toggle('lead', mine > theirs);
+        document.querySelector('[data-score-partner]')!.classList.toggle('lead', theirs > mine);
+        set('[data-score-ties]', tie ? `${tie} tie${tie === 1 ? '' : 's'}` : '');
+        document.querySelector<HTMLElement>('[data-score]')!.hidden = false;
       }
     } catch (err) {
       reportError(err, 'couple-home');
@@ -341,16 +392,71 @@ const number = (i: number) => String(publicToys.length - i).padStart(2, '0');
   .edit-since { color: var(--muted); font-weight: 600; font-size: 1rem; }
   .edit-since:hover { color: var(--text); }
 
-  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-  .tile { display: flex; flex-direction: column; gap: 6px; padding: 18px 18px 16px; border-radius: var(--radius); color: inherit; text-decoration: none; min-height: 150px;
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .tile { position: relative; display: flex; gap: 12px; padding: 20px; border-radius: var(--radius); color: inherit; text-decoration: none; min-height: 170px; overflow: hidden;
     background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface) 70%);
-    outline: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); transition: transform .2s, box-shadow .2s; }
+    outline: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); transition: transform .2s, box-shadow .2s;
+    animation: rise .6s both cubic-bezier(.2, 1.2, .4, 1); }
+  .tile:nth-child(2) { animation-delay: .08s; } .tile:nth-child(3) { animation-delay: .16s; }
+  .tile.tile-wide { grid-column: 1 / -1; min-height: 190px; padding: 24px; }
   a.tile:hover { transform: translateY(-3px); box-shadow: 0 14px 36px color-mix(in srgb, var(--accent) 20%, transparent); }
-  .tile-title { font-family: Fredoka, sans-serif; font-weight: 700; font-size: 1.3rem; }
-  .tile-status { color: var(--muted); font-size: .95rem; }
-  .tile-go { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: var(--accent); }
-  .tile.soon { outline-style: dashed; background: transparent; }
-  .tile.tally { --accent: var(--heart); }
+  .tile-body { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+  .tile-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-family: Fredoka, sans-serif; font-weight: 700; font-size: 1.35rem; }
+  .tile-wide .tile-title { font-size: 1.7rem; }
+  .tile-status { color: var(--text); opacity: .82; font-size: 1rem; line-height: 1.45; }
+  .tile-wide .tile-status { font-size: 1.12rem; }
+  .tile-go { margin-top: auto; padding-top: 10px; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: var(--accent); }
+
+  /* "your turn" badge with a pulsing dot */
+  .turn { position: relative; padding: 3px 10px 3px 21px; border-radius: 99px; font: 800 .7rem/1.4 Nunito, sans-serif; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .turn::before { content: ''; position: absolute; left: 9px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--accent); animation: ping 1.6s infinite; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+
+  /* this month's Wordle score, inside the wide tile */
+  .score { align-self: flex-start; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; padding: 7px 14px; border-radius: 14px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent); outline: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
+  .score-month { font-size: .72rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  .score-row { display: inline-flex; align-items: center; gap: 7px; font-size: 1.15rem; }
+  .score-row b { font-family: Fredoka, sans-serif; font-size: 1.35rem; min-width: .7em; text-align: center; }
+  .score-row b.lead { color: var(--accent); }
+  .score-row i { font-style: normal; color: var(--muted); }
+  .score-ties { font-size: .85rem; color: var(--muted); }
+  .score-ties:empty { display: none; }
+
+  /* tile drawings */
+  .tile-art { flex: none; align-self: flex-end; width: 84px; height: auto; transition: transform .35s cubic-bezier(.2, 1.4, .4, 1); }
+  a.tile:hover .tile-art { transform: rotate(-4deg) scale(1.06); }
+  .tile-art-wordle { width: 168px; align-self: center; transform: rotate(-7deg); }
+  a.tile:hover .tile-art-wordle { transform: rotate(-2deg) scale(1.04); }
+  .wt { transform-box: fill-box; transform-origin: center; animation: flip .45s var(--d) both ease-out; }
+  .wt.G { fill: #6aaa64; } .wt.Y { fill: #c9b458; } .wt.B { fill: color-mix(in srgb, var(--text) 22%, transparent); }
+  @keyframes flip { from { transform: scaleY(0); } }
+  .jar-glass { fill: color-mix(in srgb, var(--accent) 9%, transparent); stroke: color-mix(in srgb, var(--accent) 55%, var(--text)); stroke-width: 2.5; }
+  .jar-lid { fill: var(--accent); }
+  .jar-shine { stroke: color-mix(in srgb, var(--text) 40%, transparent); stroke-width: 3; stroke-linecap: round; fill: none; }
+  .slip { transform-box: fill-box; transform-origin: center; }
+  .slip.p { fill: #ff9fc3; } .slip.g { fill: #ffd66e; } .slip.b { fill: #a3d4ff; }
+  a.tile:hover .slips { animation: jiggle .5s ease-in-out; transform-origin: 40px 80px; }
+  @keyframes jiggle { 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+  .glass { fill: none; stroke: color-mix(in srgb, var(--text) 50%, transparent); stroke-width: 2.5; stroke-linejoin: round; }
+  .wave { fill: color-mix(in srgb, var(--accent) 70%, transparent); animation: slosh 2.8s linear infinite; }
+  @keyframes slosh { to { transform: translateX(-40px); } }
+  .bubble { fill: rgba(255, 255, 255, .65); animation: bubble-up 2.8s var(--d) infinite ease-in; }
+  @keyframes bubble-up { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-36px); opacity: 0; } }
+  .straw { stroke: var(--heart); stroke-width: 4.5; stroke-linecap: round; }
+  .lemon { fill: #ffe27a; stroke: #f5c400; stroke-width: 2.5; }
+
+  @media (max-width: 640px) {
+    .tiles { grid-template-columns: 1fr; }
+    .tile { min-height: 140px; }
+    .tile.tile-wide { padding: 20px; }
+    .tile-art { width: 70px; }
+    .tile-art-wordle { width: 108px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile, .wt, .wave, .bubble, .turn::before, a.tile:hover .slips { animation: none; }
+  }
 
   /* group home */
   .group-home { text-align: center; padding: 40px 0 34px; animation: rise .6s both cubic-bezier(.2, 1.2, .4, 1); }

@@ -1,4 +1,4 @@
-// One-line Wordle status for the home page: the couple's today + month tally, or a group's today.
+// Wordle status for the home page: the couple's today + month tally, or a group's today.
 import { localDateStr, puzzleNo, winnerOf } from './scoring.js';
 import { rankDay } from './leaderboard.js';
 
@@ -7,7 +7,7 @@ import { rankDay } from './leaderboard.js';
 export function summarize({ members, meId, submissions, results, today, monthStart }) {
   const me = members.find((m) => m.user_id === meId);
   const partner = members.find((m) => m.user_id !== meId);
-  if (!partner) return { today: 'Waiting for your person to join 💌', tally: '' };
+  if (!partner) return { today: 'Waiting for your person to join 💌', tally: '', state: 'alone', wins: null };
   const played = (m) => submissions.some((s) => s.user_id === m.user_id && s.puzzle_no === today);
   const slotOf = (m) => (m.slot === 1 ? 'p1' : 'p2');
 
@@ -20,15 +20,21 @@ export function summarize({ members, meId, submissions, results, today, monthSta
     days.set(r.puzzle_no, day);
   }
 
+  // state: 'fresh' (nobody yet), 'turn' (partner played, you haven't), 'waiting' (you played), 'done' (both).
   let todayLine;
+  let state;
   if (played(me) && played(partner)) {
+    state = 'done';
     const w = winnerOf(days.get(today));
     todayLine = w === 'tie' ? 'Tied today 💞' : w ? `${w === slotOf(me) ? 'You' : partner.display_name} won today 👑` : 'You both played today ✨';
   } else if (played(partner)) {
+    state = 'turn';
     todayLine = `${partner.display_name} played, your turn 👀`;
   } else if (played(me)) {
+    state = 'waiting';
     todayLine = `Waiting for ${partner.display_name} 💌`;
   } else {
+    state = 'fresh';
     todayLine = "New puzzle today. Who's first? 👀";
   }
 
@@ -46,7 +52,7 @@ export function summarize({ members, meId, submissions, results, today, monthSta
       : wins.me > wins.partner ? `You lead ${wins.me}–${wins.partner} 👑` : `${partner.display_name} leads ${wins.partner}–${wins.me} 👑`;
     tally = `${lead}${wins.tie ? ` · ${wins.tie} tie${wins.tie === 1 ? '' : 's'}` : ''}`;
   }
-  return { today: todayLine, tally };
+  return { today: todayLine, tally, state, wins: games ? wins : null };
 }
 
 // client: the Supabase client (passed in so this module loads under node tests).

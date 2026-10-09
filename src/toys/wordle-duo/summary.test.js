@@ -12,6 +12,8 @@ const sub = (user_id, puzzle_no) => ({ user_id, puzzle_no });
 test('today line covers each state', () => {
   assert.equal(summarize({ ...base, submissions: [], results: [] }).today, "New puzzle today. Who's first? 👀");
   assert.equal(summarize({ ...base, submissions: [sub(R, 100)], results: [] }).today, 'Rupali played, your turn 👀');
+  assert.equal(summarize({ ...base, submissions: [sub(R, 100)], results: [] }).state, 'turn');
+  assert.equal(summarize({ ...base, submissions: [], results: [] }).state, 'fresh');
   assert.equal(summarize({ ...base, submissions: [sub(A, 100)], results: [res(A, 100, 3)] }).today, 'Waiting for Rupali 💌');
   const both = { ...base, submissions: [sub(A, 100), sub(R, 100)] };
   assert.equal(summarize({ ...both, results: [res(A, 100, 3), res(R, 100, 4)] }).today, 'You won today 👑');
@@ -30,6 +32,8 @@ test('month tally counts only this month and only days both played', () => {
   ];
   assert.equal(summarize({ ...base, submissions: [], results }).tally, 'Rupali leads 2–1 👑 · 1 tie');
   assert.equal(summarize({ ...base, submissions: [], results: [] }).tally, '');
+  assert.deepEqual(summarize({ ...base, submissions: [], results }).wins, { me: 1, partner: 2, tie: 1 });
+  assert.equal(summarize({ ...base, submissions: [], results: [] }).wins, null);
 });
 
 test('a couple still waiting for the partner', () => {
