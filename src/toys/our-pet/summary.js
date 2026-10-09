@@ -1,5 +1,5 @@
-// The pet's line (and colour) for the couple home.
-import { petHomeLine, COLOURS } from './pet.js';
+// The cat's line (and coat) for the couple home.
+import { petHomeLine, coatOf } from './pet.js';
 
 // client: the Supabase client (passed in so this module loads under node tests).
 export async function petHomeData(space, client) {
@@ -8,7 +8,7 @@ export async function petHomeData(space, client) {
   const pet = data?.pet;
   return {
     line: petHomeLine(data, Date.now(), space.couple.partner?.display_name ?? 'Your person'),
-    colours: pet && !pet.died_at ? COLOURS[pet.colour] : null,
+    coat: pet ? coatOf(pet.colour) : null,
     dead: Boolean(pet?.died_at),
   };
 }

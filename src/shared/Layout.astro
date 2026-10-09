@@ -6,8 +6,9 @@ interface Props {
   title: string;
   description?: string;
   crumb?: string; // shown after the wordmark, e.g. the toy name
+  full?: boolean; // edge to edge, no page gutter (e.g. the pet's room)
 }
-const { title, description = 'Small, silly, playable things.', crumb } = Astro.props;
+const { title, description = 'Small, silly, playable things.', crumb, full = false } = Astro.props;
 const favicon = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23ff8fc4'/><stop offset='1' stop-color='%237cc4ff'/></linearGradient></defs><rect width='64' height='64' rx='18' fill='url(%23g)'/><text x='32' y='45' font-size='38' text-anchor='middle' font-family='Arial,sans-serif' font-weight='700' fill='%2314111b'>a</text></svg>`;
 ---
 <!doctype html>
@@ -23,6 +24,7 @@ const favicon = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' view
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <slot name="head" />
     <!-- Last mode, applied before paint so the couple theme doesn't flash (src/shared/space.js keeps it current). -->
     <!-- The old workers.dev address, www and plain http all move to https://rups.fun, keeping the path so invite links still work. -->
     <script is:inline>if (['madebyaryan.aryanbakshi2021.workers.dev', 'www.rups.fun'].includes(location.hostname) || (location.hostname === 'rups.fun' && location.protocol === 'http:')) location.replace(`https://rups.fun${location.pathname}${location.search}${location.hash}`);</script>
@@ -30,7 +32,7 @@ const favicon = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' view
   </head>
   <body>
     <SiteHeader crumb={crumb} />
-    <div class="wrap">
+    <div class:list={['wrap', { full }]}>
       <slot />
     </div>
   </body>

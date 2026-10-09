@@ -285,11 +285,11 @@ select public.wordle_set_couple(:'room', true);
 -- Our pet: shared by the couple, meters drain with time, dies after 7 days alone, other toys feed it
 set request.jwt.claim.sub = :'A';
 select pg_temp.check('no pet yet', (select public.pet_state() -> 'pet' = 'null'::jsonb));
-select pg_temp.expect_error('a nameless pet is refused', 'select public.pet_adopt(''  '', ''pink'')');
-select pg_temp.expect_error('an odd colour is refused', 'select public.pet_adopt(''Mochi'', ''plaid'')');
+select pg_temp.expect_error('a nameless pet is refused', 'select public.pet_adopt(''  '', ''black'')');
+select pg_temp.expect_error('an odd coat is refused', 'select public.pet_adopt(''Mochi'', ''pink'')');
 select pg_temp.check('A hatches Mochi, meters full', (select p -> 'name' = '"Mochi"' and (p ->> 'hunger')::real = 100 and (p ->> 'health')::real = 100
-  from (select public.pet_adopt(' Mochi ', 'pink') -> 'pet' as p) x));
-select pg_temp.expect_error('one pet at a time', 'select public.pet_adopt(''Bun'', ''blue'')');
+  from (select public.pet_adopt(' Mochi ', 'black') -> 'pet' as p) x));
+select pg_temp.expect_error('one pet at a time', 'select public.pet_adopt(''Bun'', ''grey'')');
 select pg_temp.expect_error('nobody reads the pet table', 'select * from public.pets');
 select pg_temp.expect_error('nobody writes the meters', 'update public.pets set health = 100');
 select pg_temp.expect_error('the boost is not callable', 'select public.pet_boost(public.jar_room(), null, ''wordle'')');
@@ -329,10 +329,10 @@ select pg_temp.check('7 days alone and it dies, right at 7 days', (select abs(ex
   and (p ->> 'health')::real = 0 from (select public.pet_state() -> 'pet' as p) x));
 select pg_temp.check('feeding cannot bring it back', (select public.pet_act('feed') -> 'pet' ->> 'died_at' is not null));
 select pg_temp.check('a new egg after a loss', (select s -> 'pet' ->> 'name' = 'Bun' and s -> 'pet' ->> 'died_at' is null
-  and s -> 'graves' -> 0 ->> 'name' = 'Mochi' from (select public.pet_adopt('Bun', 'blue') as s) x));
+  and s -> 'graves' -> 0 ->> 'name' = 'Mochi' from (select public.pet_adopt('Bun', 'grey') as s) x));
 set request.jwt.claim.sub = :'C';
 select pg_temp.check('a friend sees no pet of ours', (select public.pet_state() -> 'pet' = 'null'::jsonb and public.pet_state() -> 'graves' = '[]'::jsonb));
-select pg_temp.expect_error('and cannot hatch one alone', 'select public.pet_adopt(''Solo'', ''mint'')');
+select pg_temp.expect_error('and cannot hatch one alone', 'select public.pet_adopt(''Solo'', ''tuxedo'')');
 set request.jwt.claim.sub = :'A';
 
 -- Kitne Ka?: same five for both, prices and partner guesses only after you guess

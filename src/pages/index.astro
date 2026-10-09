@@ -115,17 +115,23 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
             )}
             {t.slug === PET && (
               <svg class="tile-art tile-art-pet" viewBox="0 0 240 220" aria-hidden="true">
-                <ellipse class="mp-shadow" cx="120" cy="206" rx="48" ry="7" />
+                <ellipse class="mp-shadow" cx="120" cy="208" rx="62" ry="7" />
                 <g class="mp-body">
-                  <ellipse class="mp-halo" cx="120" cy="54" rx="28" ry="7" />
-                  <path class="mp-line" d="M162 172 C 188 170 200 150 194 128" />
-                  <path class="mp-fill" d="M84 100 L72 58 Q73 50 81 54 L110 84 Z M156 100 L168 58 Q167 50 159 54 L130 84 Z" />
-                  <path class="mp-fill" d="M120 76 C 164 76 184 108 184 146 C 184 184 158 202 120 202 C 82 202 56 184 56 146 C 56 108 76 76 120 76 Z" />
-                  <ellipse class="mp-belly" cx="120" cy="166" rx="38" ry="28" />
-                  <g class="mp-eyes"><ellipse cx="102" cy="132" rx="10" ry="12" /><ellipse cx="138" cy="132" rx="10" ry="12" /></g>
-                  <circle class="mp-shine" cx="105.5" cy="127" r="3.8" /><circle class="mp-shine" cx="141.5" cy="127" r="3.8" />
-                  <ellipse class="mp-cheek" cx="86" cy="150" rx="10" ry="6" /><ellipse class="mp-cheek" cx="154" cy="150" rx="10" ry="6" />
-                  <path class="mp-mouth" d="M110 148 q5 6 10 0 q5 6 10 0" />
+                  <ellipse class="mp-halo" cx="112" cy="30" rx="26" ry="6" />
+                  <path class="mp-tail" d="M150 196 C 196 200 210 172 200 146 C 194 130 184 128 180 136" />
+                  <path class="mp-fur" d="M84 120 C 70 150 66 190 80 204 L 160 204 C 170 190 166 150 146 118 Z" />
+                  <ellipse class="mp-fur" cx="92" cy="204" rx="16" ry="7" /><ellipse class="mp-fur" cx="132" cy="204" rx="16" ry="7" />
+                  <g class="mp-head">
+                    <path class="mp-fur" d="M74 72 L70 26 L98 50 Z M150 72 L154 26 L126 50 Z" />
+                    <path class="mp-ear" d="M78 62 L76 38 L92 52 Z M146 62 L148 38 L132 52 Z" />
+                    <path class="mp-fur mp-face" d="M112 42 C 144 42 162 60 162 86 C 162 112 140 128 112 128 C 84 128 62 112 62 86 C 62 60 80 42 112 42 Z" />
+                    <g class="mp-eyes"><ellipse cx="94" cy="86" rx="10" ry="11" /><ellipse cx="130" cy="86" rx="10" ry="11" /></g>
+                    <g class="mp-pupils"><ellipse cx="94" cy="87" rx="3" ry="8" /><ellipse cx="130" cy="87" rx="3" ry="8" /></g>
+                    <circle class="mp-shine" cx="97" cy="81" r="2.6" /><circle class="mp-shine" cx="133" cy="81" r="2.6" />
+                    <path class="mp-nose" d="M108 101 Q112 99 116 101 Q114 105 112 105.5 Q110 105 108 101 Z" />
+                    <path class="mp-whisk" d="M98 106 L66 100 M98 110 L66 112 M126 106 L158 100 M126 110 L158 112" />
+                    <path class="mp-collar" d="M86 124 Q112 138 138 124" />
+                  </g>
                 </g>
               </svg>
             )}
@@ -271,11 +277,14 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
       .then((line) => set('[data-status="kitne-ka"]', line))
       .catch((err) => reportError(err, 'couple-home-kitne'));
     petHomeData(space, supabase)
-      .then(({ line, colours, dead }) => {
+      .then(({ line, coat, dead }) => {
         set('[data-status="our-pet"]', line);
         const tile = document.querySelector<HTMLElement>('[data-tile="our-pet"]')!;
         tile.classList.toggle('pet-dead', dead);
-        if (colours) { tile.style.setProperty('--pb', colours.body); tile.style.setProperty('--pbelly', colours.belly); }
+        if (coat) {
+          tile.style.setProperty('--pf1', coat.fur[0]); tile.style.setProperty('--pf2', coat.fur[2]);
+          tile.style.setProperty('--peye', coat.iris[1]); tile.style.setProperty('--pcollar', coat.collar); tile.style.setProperty('--pear', coat.ear);
+        }
       })
       .catch((err) => reportError(err, 'couple-home-pet'));
     chessHomeData(space, supabase)
@@ -514,19 +523,25 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
   .tile.tile-double { grid-column: span 2; }
   .tile-art-pet { width: 132px; align-self: center; }
   a.tile:hover .tile-art-pet { transform: rotate(-3deg) scale(1.05); }
-  .mp-body { transform-origin: 120px 205px; animation: mp-breathe 3.2s ease-in-out infinite; }
-  @keyframes mp-breathe { 50% { transform: scale(.99, 1.04); } }
-  a.tile:hover .mp-body { animation: mp-hop .6s ease-in-out; }
-  @keyframes mp-hop { 50% { transform: translateY(-26px) scale(.96, 1.05); } }
+  .mp-body { transform-origin: 120px 205px; animation: mp-breathe 3.6s ease-in-out infinite; }
+  @keyframes mp-breathe { 50% { transform: scale(.995, 1.025); } }
   .mp-shadow { fill: rgba(0, 0, 0, .25); }
-  .mp-fill { fill: var(--pb, #ffb3cf); stroke: #3a2530; stroke-width: 4; stroke-linejoin: round; }
-  .mp-line { fill: none; stroke: #3a2530; stroke-width: 16; stroke-linecap: round; }
-  .mp-belly { fill: var(--pbelly, #ffe3ee); }
-  .mp-eyes ellipse { fill: #2b1a24; transform-box: fill-box; transform-origin: center; animation: mp-blink 4.5s infinite; }
+  .mp-fur { fill: var(--pf2, #1b1a20); }
+  .mp-face { fill: var(--pf1, #2e2b36); }
+  .mp-tail { fill: none; stroke: var(--pf2, #1b1a20); stroke-width: 13; stroke-linecap: round; transform-origin: 150px 196px; animation: mp-tail 3s ease-in-out infinite; }
+  @keyframes mp-tail { 50% { transform: rotate(-6deg); } }
+  .mp-ear { fill: var(--pear, #3d2b36); }
+  .mp-eyes ellipse { fill: var(--peye, #f4c445); }
+  .mp-eyes, .mp-pupils { transform-box: fill-box; transform-origin: center; animation: mp-blink 4.5s infinite; }
+  .mp-pupils ellipse { fill: #0d0b0c; }
   @keyframes mp-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
   .mp-shine { fill: #fff; }
-  .mp-cheek { fill: #ff7fa8; opacity: .5; }
-  .mp-mouth { fill: none; stroke: #2b1a24; stroke-width: 4; stroke-linecap: round; }
+  .mp-nose { fill: #c98a96; }
+  .mp-whisk { stroke: #d9d4dc; stroke-width: 1.4; opacity: .7; }
+  .mp-collar { fill: none; stroke: var(--pcollar, #d9788f); stroke-width: 5; stroke-linecap: round; }
+  .mp-head { transform-origin: 112px 128px; }
+  a.tile:hover .mp-head { animation: mp-tilt .8s ease-in-out; }
+  @keyframes mp-tilt { 50% { transform: rotate(-8deg); } }
   .mp-halo { display: none; fill: none; stroke: #ffe27a; stroke-width: 5; }
   .tile.pet-dead .tile-art-pet { filter: saturate(.1) brightness(1.1); opacity: .7; }
   .tile.pet-dead .mp-halo { display: inline; }
@@ -556,7 +571,7 @@ const PAWN = (x: number, y: number) => `M${x - 5} ${y - 21}h10l3 13h3a3 3 0 0 1 
     .tile-art-wordle { width: 108px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .tile, .wt, .wave, .bubble, .turn::before, a.tile:hover .slips, .chess-heart, .mp-body, .mp-eyes ellipse, .tag { animation: none; }
+    .tile, .wt, .wave, .bubble, .turn::before, a.tile:hover .slips, .chess-heart, .mp-body, .mp-eyes, .mp-pupils, .mp-tail, .tag { animation: none; }
   }
 
   /* group home */
